@@ -1,7 +1,42 @@
-from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
+from typing import TypedDict, Optional, List
+from pydantic import BaseModel, Field
+
+
+class Activity(BaseModel):
+    name: str
+    description: str
+    duration : int
+    type: str 
+    rubric: Optional[str]
+    related_learning_outcome: str
+    weight: float    
+    
+class ScheduleItem(BaseModel):
+    week: int
+    activity_name: str = Field(description="Nombre de la actividad (debe coincidir con uno en la lista de actividades)")
+    time_commitment: str
+
+class Module(BaseModel):
+    name: str
+    description: str
+    activities: List[str] # Lista de nombres de actividades
+
+class CourseStructure(BaseModel):
+    academic_program: str
+    semester: int
+    academic_level: str
+    credits: int
+    prerequisites: List[str]
+    teacher: str
+    description: str = Field(description="Descripción concisa del curso")
+    learning_outcomes: List[str]
+    modules: List[Module]
+    activities: List[Activity]
+    schedule: List[ScheduleItem]
 
 class CourseState(TypedDict):
-    is_valid : bool
-    structure : list
+    doc_id: str
+    course_structure: Optional[CourseStructure]
+    is_valid: bool
+    errors: Optional[List[str]]
     

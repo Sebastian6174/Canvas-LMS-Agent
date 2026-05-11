@@ -27,7 +27,7 @@ class Config:
     
     # LLM
     openrouter_api_key = _env("OPENROUTER_API_KEY")
-    openrouter_model = _env("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+    openrouter_model = _env("OPENROUTER_MODEL", "inclusionai/ring-2.6-1t")
     
     # Método para crear una instancia del modelo de lenguaje
     @classmethod
@@ -44,5 +44,3 @@ class Config:
                 "X-Title": "Canvas LMS Agent",
             }
         )
-
-config = Config()
