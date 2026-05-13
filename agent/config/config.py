@@ -17,8 +17,9 @@ def _env(*keys: str, default: str | None = None):
 
 class Config:
     # Canvas
-    domain = _env("DOMAIN", "univallecolombia.instructure")
-    course_id = _env("COURSE_ID", "")
+    domain = _env("DOMAIN", "univallecolombia.instructure.com")
+    base_course_id = _env("BASE_COURSE_ID", "")
+    canvas_api_token = _env("CANVAS_API_TOKEN", "")
     base_url = f"https://{domain}/api/v1/courses/{course_id}"
     
     # Google Docs

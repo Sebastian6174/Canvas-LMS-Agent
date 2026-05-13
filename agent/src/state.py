@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional, List
+from typing import TypedDict, Optional, List, Dict
 from pydantic import BaseModel, Field
 
 
@@ -37,6 +37,8 @@ class CourseStructure(BaseModel):
 class CourseState(TypedDict):
     doc_id: str
     course_structure: Optional[CourseStructure]
+    canvas_course_id: Optional[str]
+    module_mapping: Optional[Dict[str, int]]
     is_valid: bool
     errors: Optional[List[str]]
     
