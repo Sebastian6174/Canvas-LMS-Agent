@@ -1,12 +1,13 @@
 from src.state import CourseState
 from src.tools.canvas_api import create_module
+from config import config
 
 def module_generator_node(state: CourseState) -> CourseState:
     """
     Nodo encargado de crear los módulos en el curso de Canvas.
     """
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id")
+    course_id = state.get("canvas_course_id") or config.course_id
     
     if not structure or not course_id:
         return {**state, "errors": ["Faltan datos para crear los módulos"]}

@@ -1,12 +1,13 @@
 from src.state import CourseState
 from src.tools.canvas_api import create_assignment, add_item_to_module
+from config import config
 
 def activity_creator_node(state: CourseState) -> CourseState:
     """
     Nodo encargado de crear las actividades y asignarlas a los módulos.
     """
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id")
+    course_id = state.get("canvas_course_id") or config.course_id
     module_mapping = state.get("module_mapping", {})
     
     if not structure or not course_id:

@@ -13,20 +13,24 @@ def setup_course_node(state: CourseState) -> CourseState:
     print(f"Creando curso: {structure.academic_program} - {structure.semester}")
     
     # Creamos el curso
-    course_name = f"{structure.academic_program} - Semestre {structure.semester}"
-    course_code = f"{structure.academic_program[:3].upper()}-{structure.semester}"
-    
-    new_course = create_course.invoke({
-        "name": course_name,
-        "course_code": course_code
-    })
-    
-    if "error" in new_course:
-        return {**state, "errors": [f"Error al crear curso: {new_course['error']}"]}
-    
-    course_id = str(new_course.get("id"))
-    print(f"Curso creado con ID: {course_id}")
-    
+    if (config.create_new_course):
+        course_name = f"{structure.academic_program} - Semestre {structure.semester}"
+        course_code = f"{structure.academic_program[:3].upper()}-{structure.semester}"
+        
+        new_course = create_course.invoke({
+            "name": course_name,
+            "course_code": course_code
+        })
+        
+        if "error" in new_course:
+            return {**state, "errors": [f"Error al crear curso: {new_course['error']}"]}
+        
+        course_id = str(new_course.get("id"))
+        print(f"Curso creado con ID: {course_id}")
+    else:
+        course_id = config.course_id
+        print(f"Usando curso existente con ID: {course_id}")
+
     # Importamos estructura base si existe un BASE_COURSE_ID configurado
     base_course_id = config.base_course_id
     if base_course_id:

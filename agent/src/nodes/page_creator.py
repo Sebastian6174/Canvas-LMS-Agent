@@ -1,12 +1,13 @@
 from src.state import CourseState
 from src.tools.canvas_api import update_course_home_page
+from config import config
 
 def page_creator_node(state: CourseState) -> CourseState:
     """
     Nodo encargado de crear y configurar la página de inicio del curso.
     """
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id")
+    course_id = state.get("canvas_course_id") or config.course_id
     
     if not structure or not course_id:
         return {**state, "errors": ["Faltan datos para crear la página de inicio"]}
