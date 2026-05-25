@@ -91,17 +91,23 @@ def create_assignment(name: str, description: str, course_id: Optional[str] = No
     return _canvas_request("POST", "/assignments", payload, custom_course_id=course_id)
 
 @tool
-def add_item_to_module(module_id: int, title: str, type: str, content_id: Optional[int] = None, course_id: Optional[str] = None) -> Dict:
+def add_item_to_module(module_id: int, title: str, type: str, content_id: Optional[Any] = None, page_url: Optional[str] = None, course_id: Optional[str] = None) -> Dict:
     """
     Agrega un ítem a un módulo existente.
+    Si el tipo es 'Page', se debe proporcionar 'page_url' (el slug de la página).
+    Para 'Assignment' o 'Discussion', se proporciona 'content_id'.
     """
     payload = {
         "module_item": {
             "title": title,
-            "type": type,
-            "content_id": content_id
+            "type": type
         }
     }
+    if type == "Page" and page_url:
+        payload["module_item"]["page_url"] = page_url
+    elif content_id is not None:
+        payload["module_item"]["content_id"] = content_id
+        
     return _canvas_request("POST", f"/modules/{module_id}/items", payload, custom_course_id=course_id)
 
 @tool
@@ -116,6 +122,34 @@ def update_course_home_page(body: str, course_id: Optional[str] = None) -> Dict:
         }
     }
     return _canvas_request("PUT", "/front_page", payload, custom_course_id=course_id)
+
+@tool
+def create_page(title: str, body: str, course_id: Optional[str] = None) -> Dict:
+    """
+    Crea una nueva página wiki en el curso de Canvas.
+    Retorna el objeto de la página creada (incluye 'url' que sirve como page_url).
+    """
+    payload = {
+        "wiki_page": {
+            "title": title,
+            "body": body,
+            "published": True
+        }
+    }
+    return _canvas_request("POST", "/pages", payload, custom_course_id=course_id)
+
+@tool
+def create_discussion_topic(title: str, message: str, course_id: Optional[str] = None) -> Dict:
+    """
+    Crea un nuevo foro de discusión (discussion topic) en el curso de Canvas.
+    Retorna el objeto del foro creado (incluye 'id').
+    """
+    payload = {
+        "title": title,
+        "message": message,
+        "published": True
+    }
+    return _canvas_request("POST", "/discussion_topics", payload, custom_course_id=course_id)
 
 @tool
 def set_module_position(module_id: int, position: int, course_id: Optional[str] = None) -> Dict:

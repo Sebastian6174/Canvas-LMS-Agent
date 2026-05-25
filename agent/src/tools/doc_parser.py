@@ -3,7 +3,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from config import config
 
-SCOPES = ['https://www.googleapis.com/auth/documents.readonly']
+SCOPES = ['https://www.googleapis.com/auth/documents.readonly', 'https://www.googleapis.com/auth/drive.readonly']
 
 def get_credentials():
     """Gets valid service account credentials from credentials.json."""
@@ -57,7 +57,22 @@ def read_google_doc(doc_id):
         service = build('docs', 'v1', credentials=creds)
         
         # Se obtiene el documento por su ID
-        doc = service.documents().get(documentId=doc_id, includeTabsContent=True).execute()
+        try:
+            doc = service.documents().get(documentId=doc_id, includeTabsContent=True).execute()
+        except Exception as api_err:
+            if "Office file" in str(api_err):
+                print(f"El documento {doc_id} es un archivo de Office. Intentando exportar usando Drive API...")
+                try:
+                    drive_service = build('drive', 'v3', credentials=creds)
+                    request = drive_service.files().export_media(fileId=doc_id, mimeType='text/plain')
+                    content_bytes = request.execute()
+                    content = content_bytes.decode('utf-8', errors='replace')
+                    return [{"title": "Documento Exportado", "content": content}]
+                except Exception as export_err:
+                    print(f"Advertencia: No se pudo exportar el archivo de Office (probablemente porque no es un documento de Google Docs nativo). Se omitirá la lectura de este documento. Detalles: {export_err}")
+                    return None
+            else:
+                raise api_err
         
         print(f"--- Document Title: {doc.get('title')} ---")
                 

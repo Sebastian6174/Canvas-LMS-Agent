@@ -6,12 +6,18 @@ def activity_creator_node(state: CourseState) -> CourseState:
     """
     Nodo encargado de crear las actividades y asignarlas a los módulos.
     """
+    if state.get("errors"):
+        return state
+
     structure = state.get("course_structure")
     course_id = state.get("canvas_course_id") or config.course_id
     module_mapping = state.get("module_mapping", {})
-    
+
     if not structure or not course_id:
         return {**state, "errors": ["Faltan datos para crear las actividades"]}
+
+    if not module_mapping:
+        return {**state, "errors": ["No hay módulos creados para asignar actividades"]}
 
     print(f"Creando actividades para el curso {course_id}...")
     

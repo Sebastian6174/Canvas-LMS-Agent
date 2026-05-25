@@ -29,6 +29,8 @@ def setup_course_node(state: CourseState) -> CourseState:
         print(f"Curso creado con ID: {course_id}")
     else:
         course_id = config.course_id
+        if not course_id:
+            return {**state, "errors": ["COURSE_ID no configurado en .env"]}
         print(f"Usando curso existente con ID: {course_id}")
 
     # Importamos estructura base si existe un BASE_COURSE_ID configurado

@@ -1,4 +1,5 @@
-from typing import TypedDict, Optional, List, Dict
+import operator
+from typing import TypedDict, Optional, List, Dict, Annotated
 from pydantic import BaseModel, Field
 
 
@@ -22,6 +23,7 @@ class Module(BaseModel):
     activities: List[str] # Lista de nombres de actividades
 
 class CourseStructure(BaseModel):
+    name: str
     academic_program: str
     semester: int
     academic_level: str
@@ -39,6 +41,11 @@ class CourseState(TypedDict):
     course_structure: Optional[CourseStructure]
     canvas_course_id: Optional[str]
     module_mapping: Optional[Dict[str, int]]
+    teacher_info: Optional[str]
+    alignment_page_url: Optional[str]
+    agenda_page_url: Optional[str]
+    forum_discussion_id: Optional[int]
+    credits_page_url: Optional[str]
     is_valid: bool
-    errors: Optional[List[str]]
+    errors: Annotated[List[str], operator.add]
     

@@ -22,10 +22,11 @@ class Config:
     base_course_id = _env("BASE_COURSE_ID", "")
     canvas_api_token = _env("CANVAS_API_TOKEN", "")
     
-    create_new_course = _env("CREATE_NEW_COURSE", "false")
+    create_new_course = _env("CREATE_NEW_COURSE", "false") == "true"
 
     # Google Docs
     doc_id = _env("DOC_ID", "")
+    teacher_doc = _env("TEACHER_DOC", "")
     credentials_path = BASE_DIR / "config" / "credentials.json"
     
     # LLM
@@ -42,6 +43,7 @@ class Config:
             api_key=cls.openrouter_api_key,
             base_url="https://openrouter.ai/api/v1",
             model=cls.openrouter_model,
+            max_tokens=8192,
             default_headers={
                 "HTTP-Referer": "https://github.com/sebas/canvas-lms-agent",
                 "X-Title": "Canvas LMS Agent",

@@ -1,32 +1,47 @@
 from langgraph.graph import StateGraph, START, END
+
 from src.state import CourseState
+from src.routing import (
+    CREATOR_NODES,
+    route_after_analyst,
+    route_after_setup,
+    route_after_modules,
+)
 from src.nodes.analyst import analyst_node
 from src.nodes.setup_course import setup_course_node
 from src.nodes.page_creator import page_creator_node
+from src.nodes.agenda_creator import agenda_creator_node
+from src.nodes.alignment_creator import alignment_creator_node
+from src.nodes.forum_creator import forum_creator_node
+from src.nodes.credits_creator import credits_creator_node
 from src.nodes.module_generator import module_generator_node
 from src.nodes.activity_creator import activity_creator_node
-from config import config
+
 
 def create_graph():
-    # Se inicializa el grafo con el estado definido en state.py
     workflow = StateGraph(CourseState)
 
-    # Se definen los nodos
     workflow.add_node("analyst", analyst_node)
     workflow.add_node("setup_course", setup_course_node)
     workflow.add_node("page_creator", page_creator_node)
+    workflow.add_node("agenda_creator", agenda_creator_node)
+    workflow.add_node("alignment_creator", alignment_creator_node)
+    workflow.add_node("forum_creator", forum_creator_node)
+    workflow.add_node("credits_creator", credits_creator_node)
     workflow.add_node("module_generator", module_generator_node)
     workflow.add_node("activity_creator", activity_creator_node)
 
-    # Se definen las aristas (flujo condicional y secuencial)
     workflow.add_edge(START, "analyst")
-    
-    workflow.add_edge("analyst", "setup_course")    
-    workflow.add_edge("setup_course", "page_creator")
-    workflow.add_edge("page_creator", "module_generator")
-    workflow.add_edge("module_generator", "activity_creator")
+    workflow.add_conditional_edges("analyst", route_after_analyst)
+    workflow.add_conditional_edges("setup_course", route_after_setup)
+
+    for creator in CREATOR_NODES:
+        workflow.add_edge(creator, "module_generator")
+
+    workflow.add_conditional_edges("module_generator", route_after_modules)
     workflow.add_edge("activity_creator", END)
 
     return workflow.compile()
+
 
 app = create_graph()
