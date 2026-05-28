@@ -1,11 +1,11 @@
 from src.state import CourseState
-from src.tools.canvas_api import create_course, import_base_course_content, list_course_files
+from src.tools.canvas_api import create_course, import_base_course_files, list_course_files
 from src.utils.helpers import build_course_files_map
 from config import config
 
 def setup_course_node(state: CourseState) -> CourseState:
     """
-    Nodo encargado de crear el curso en Canvas e importar la estructura base.
+    Nodo encargado de crear el curso en Canvas e importar recursos (archivos) del curso plantilla.
     """
     structure = state.get("course_structure")
     if not structure:
@@ -34,16 +34,19 @@ def setup_course_node(state: CourseState) -> CourseState:
             return {**state, "errors": ["COURSE_ID no configurado en .env"]}
         print(f"Usando curso existente con ID: {course_id}")
 
-    # Importamos estructura base si existe un BASE_COURSE_ID configurado
     base_course_id = config.base_course_id
     if base_course_id:
-        print(f"Importando contenido del curso base {base_course_id}...")
-        import_res = import_base_course_content.invoke({
+        print(f"Importando archivos del curso plantilla {base_course_id}...")
+        import_res = import_base_course_files.invoke({
             "target_course_id": course_id,
-            "source_course_id": base_course_id
+            "source_course_id": base_course_id,
         })
         if "error" in import_res:
-            print(f"Advertencia: No se pudo importar la estructura base: {import_res['error']}")
+            print(f"Advertencia: No se pudieron importar archivos del curso plantilla: {import_res['error']}")
+        elif import_res.get("workflow_state") == "skipped":
+            print("Curso plantilla sin archivos; se continúa sin copiar recursos.")
+        else:
+            print(f"Archivos importados: {import_res.get('files_copied', '?')}")
 
     # Listamos los archivos del curso para construir el mapa
     print("Listando archivos del curso en Canvas...")

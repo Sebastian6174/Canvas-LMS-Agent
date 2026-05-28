@@ -9,13 +9,16 @@ from src.state import CourseState
 INTRO_MODULE_NAME = "Introducción al curso y ayuda"
 CREDITS_MODULE_NAME = "Créditos"
 
-CREATOR_NODES: List[str] = [
-    "page_creator",
+# Creadores que deben terminar antes de la página de inicio (enlaces reales en state).
+CONTENT_CREATOR_NODES: List[str] = [
     "agenda_creator",
     "alignment_creator",
     "forum_creator",
     "credits_creator",
 ]
+
+# Compatibilidad con reportes/tests que listan todos los nodos de contenido.
+CREATOR_NODES: List[str] = CONTENT_CREATOR_NODES + ["page_creator"]
 
 
 def has_errors(state: CourseState) -> bool:
@@ -45,5 +48,5 @@ def route_after_modules(state: CourseState) -> Union[str, List[str]]:
         return END
     if not state.get("module_mapping"):
         return END
-    return CREATOR_NODES
+    return CONTENT_CREATOR_NODES
 

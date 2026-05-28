@@ -20,11 +20,7 @@ def activity_creator_node(state: CourseState) -> CourseState:
         return {**state, "errors": ["No hay módulos creados para asignar actividades"]}
 
     print(f"Creando actividades para el curso {course_id}...")
-    
-    # Mapeo temporal para encontrar actividades por nombre
-    activities_by_name = {act.name: act for act in structure.activities}
-    
-    # Primero creamos todas las actividades y guardamos sus IDs
+
     assignment_mapping = {}
     for act in structure.activities:
         print(f"Creando actividad: {act.name}")
@@ -41,7 +37,6 @@ def activity_creator_node(state: CourseState) -> CourseState:
             
         assignment_mapping[act.name] = res.get("id")
 
-    # Luego las asignamos a los módulos según la estructura
     for mod in structure.modules:
         mod_id = module_mapping.get(mod.name)
         if not mod_id:

@@ -1,5 +1,11 @@
 from src.state import CourseState
 from src.tools.canvas_api import update_course_home_page
+from src.routing import INTRO_MODULE_NAME
+from src.utils.helpers import (
+    resolve_html_links,
+    build_home_page_nav_links,
+    apply_home_page_nav_links,
+)
 from config import config
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -121,7 +127,7 @@ Ten en cuenta:
 
 1. La página de inicio se compone del banner, la ficha técnica del curso (Tabla), la introducción, los resultados de aprendizaje y el profesor.
 2. Los links del html de ejemplo no son los correctos. Por el contrario, debes usar los links de los archivos relativos al curso actual (Banner, botón guía del curso, botón foro de dudas, botón de las unidades, etc.).
-3. Los links a los que redirigen los las imágenes como las unidades o la guía de actividades deben ser relativas a los componentes del curso actual, así no estén creados.
+3. Los enlaces (href) de los botones de foro, agenda y unidades pueden usar URLs de ejemplo; se reemplazarán automáticamente por las del curso actual.
 4. NO asumas ni inventes información. Si alguna información no está presente, inserta un mensaje para el usuario indicando qué falta, pero no inventes nada.
 5. Tu respuesta SOLO debe contener código HTML válido. Sin markdown ticks de ```html.
 """
@@ -138,10 +144,23 @@ Ten en cuenta:
         print(f"Error generando HTML con LLM: {e}")
         return {"errors": [f"Error generando HTML con LLM: {str(e)}"]}
     
-    # Resolver URLs de archivos e imágenes
-    from src.utils.helpers import resolve_html_links
     files_map = state.get("course_files_map") or {}
     html_content = resolve_html_links(html_content, files_map, config.domain, course_id)
+
+    module_mapping = state.get("module_mapping") or {}
+    course_module_names = [mod.name for mod in structure.modules]
+    nav_links = build_home_page_nav_links(
+        course_id=course_id,
+        domain=config.domain,
+        module_mapping=module_mapping,
+        course_module_names=course_module_names,
+        agenda_page_url=state.get("agenda_page_url"),
+        forum_discussion_id=state.get("forum_discussion_id"),
+        intro_module_name=INTRO_MODULE_NAME,
+    )
+    html_content = apply_home_page_nav_links(
+        html_content, nav_links, course_id, config.domain
+    )
 
     result = update_course_home_page.invoke({
         "body": html_content,

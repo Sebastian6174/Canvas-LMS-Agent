@@ -59,7 +59,7 @@ def _print_pipeline_report(final_state: dict) -> int:
         return 1
 
     # 3. Creadores de contenido (paralelo)
-    print(f"\n[3] Contenido en Canvas ({len(CREATOR_NODES)} nodos en paralelo):")
+    print(f"\n[3] Contenido en Canvas ({len(CREATOR_NODES) - 1} nodos en paralelo + página de inicio):")
     content_checks = {
         "Página de inicio": not any("page_creator" in e.lower() for e in errors),
         "Agenda de actividades": bool(final_state.get("agenda_page_url")),

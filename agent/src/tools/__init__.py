@@ -1,7 +1,7 @@
 from .doc_parser import read_google_doc
 from .canvas_api import (
     create_course,
-    import_base_course_content,
+    import_base_course_files,
     create_module,
     list_modules,
     create_assignment,
@@ -15,7 +15,7 @@ from .canvas_api import (
 
 canvas_tools = [
     create_course,
-    import_base_course_content,
+    import_base_course_files,
     create_module,
     list_modules,
     create_assignment,

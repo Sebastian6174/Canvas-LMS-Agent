@@ -1,6 +1,7 @@
 from langgraph.graph import END
 
 from src.routing import (
+    CONTENT_CREATOR_NODES,
     CREATOR_NODES,
     has_errors,
     route_after_analyst,
@@ -75,7 +76,7 @@ class TestRouteAfterSetup:
 class TestRouteAfterModules:
     def test_fan_out_to_creators(self):
         state = _base_state(module_mapping={"Introducción al curso y ayuda": 1})
-        assert route_after_modules(state) == CREATOR_NODES
+        assert route_after_modules(state) == CONTENT_CREATOR_NODES
 
     def test_stop_without_mapping(self):
         assert route_after_modules(_base_state()) == END
@@ -89,7 +90,8 @@ class TestRouteAfterModules:
 
 
 class TestCreatorNodes:
-    def test_expected_parallel_nodes(self):
-        assert len(CREATOR_NODES) == 5
+    def test_parallel_content_creators_exclude_home_page(self):
+        assert len(CONTENT_CREATOR_NODES) == 4
+        assert "page_creator" not in CONTENT_CREATOR_NODES
         assert "page_creator" in CREATOR_NODES
-        assert "module_generator" not in CREATOR_NODES
+        assert "module_generator" not in CONTENT_CREATOR_NODES

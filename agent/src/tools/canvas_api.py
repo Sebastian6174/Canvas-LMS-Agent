@@ -1,7 +1,11 @@
+import time
 import requests
 from typing import Optional, List, Dict, Any
 from langchain_core.tools import tool
 from config import config
+
+MIGRATION_POLL_INTERVAL_SEC = 3
+MIGRATION_TIMEOUT_SEC = 300
 
 # Canvas API Helper
 def _canvas_request(method: str, endpoint: str, data: Optional[Dict] = None, custom_course_id: Optional[str] = None) -> Dict:
@@ -46,18 +50,90 @@ def create_course(name: str, course_code: str, account_id: str = "1") -> Dict:
     }
     return _canvas_request("POST", f"/accounts/{account_id}/courses", payload)
 
+def _list_all_course_files(course_id: str) -> List[Dict[str, Any]] | Dict[str, Any]:
+    """Lista todos los archivos del curso (paginado)."""
+    all_files: List[Dict[str, Any]] = []
+    page = 1
+    while True:
+        batch = _canvas_request(
+            "GET",
+            f"/files?per_page=100&page={page}",
+            custom_course_id=course_id,
+        )
+        if isinstance(batch, dict) and "error" in batch:
+            return batch
+        if not isinstance(batch, list):
+            break
+        all_files.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return all_files
+
+
+def _wait_for_content_migration(course_id: str, migration_id: int) -> Dict[str, Any]:
+    deadline = time.monotonic() + MIGRATION_TIMEOUT_SEC
+    while time.monotonic() < deadline:
+        status = _canvas_request(
+            "GET",
+            f"/content_migrations/{migration_id}",
+            custom_course_id=course_id,
+        )
+        if "error" in status:
+            return status
+
+        state = status.get("workflow_state")
+        if state == "completed":
+            return status
+        if state == "failed":
+            return {
+                "error": status.get("migration_issues_url") or "Content migration failed",
+                "workflow_state": state,
+            }
+
+        time.sleep(MIGRATION_POLL_INTERVAL_SEC)
+
+    return {"error": "Content migration timed out", "migration_id": migration_id}
+
+
 @tool
-def import_base_course_content(target_course_id: str, source_course_id: str) -> Dict:
+def import_base_course_files(target_course_id: str, source_course_id: str) -> Dict:
     """
-    Importa el contenido (estructura, configuraciones) de un curso base a un curso destino.
+    Copia solo los archivos (imágenes, recursos) del curso plantilla al curso destino.
+    No importa módulos, páginas, tareas ni foros.
     """
+    source_files = _list_all_course_files(source_course_id)
+    if isinstance(source_files, dict):
+        return source_files
+
+    file_ids = [f["id"] for f in source_files if f.get("id")]
+    if not file_ids:
+        print(f"No hay archivos en el curso plantilla {source_course_id}; se omite la migración.")
+        return {"workflow_state": "skipped", "files_copied": 0}
+
+    print(f"Importando {len(file_ids)} archivo(s) del curso plantilla {source_course_id}...")
     payload = {
         "migration_type": "course_copy_importer",
-        "settings": {
-            "source_course_id": source_course_id
-        }
+        "settings": {"source_course_id": str(source_course_id)},
+        "select": {"files": file_ids},
     }
-    return _canvas_request("POST", "/content_migrations", payload, custom_course_id=target_course_id)
+    migration = _canvas_request(
+        "POST",
+        "/content_migrations",
+        payload,
+        custom_course_id=target_course_id,
+    )
+    if "error" in migration:
+        return migration
+
+    migration_id = migration.get("id")
+    if not migration_id:
+        return {"error": "La migración no devolvió un ID"}
+
+    result = _wait_for_content_migration(target_course_id, migration_id)
+    if "error" not in result:
+        result["files_copied"] = len(file_ids)
+    return result
 
 @tool
 def create_module(name: str, course_id: Optional[str] = None) -> Dict:
@@ -227,6 +303,6 @@ def set_module_position(module_id: int, position: int, course_id: Optional[str] 
 @tool
 def list_course_files(course_id: Optional[str] = None) -> List[Dict]:
     """
-    Lista todos los archivos en el curso de Canvas (hasta 100 archivos).
+    Lista todos los archivos en el curso de Canvas.
     """
-    return _canvas_request("GET", "/files?per_page=100", custom_course_id=course_id)
+    return _list_all_course_files(course_id or config.course_id)

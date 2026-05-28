@@ -2,7 +2,7 @@ from langgraph.graph import StateGraph, START, END
 
 from src.state import CourseState
 from src.routing import (
-    CREATOR_NODES,
+    CONTENT_CREATOR_NODES,
     route_after_analyst,
     route_after_setup,
     route_after_modules,
@@ -38,13 +38,13 @@ def create_graph():
     workflow.add_conditional_edges("setup_course", route_after_setup)
     workflow.add_conditional_edges("module_generator", route_after_modules)
 
-    for creator in CREATOR_NODES:
+    for creator in CONTENT_CREATOR_NODES:
         workflow.add_edge(creator, "populate_special_modules")
 
-    """
-    workflow.add_edge("populate_special_modules", "activity_creator")
+    workflow.add_edge("populate_special_modules", "page_creator")
+    workflow.add_edge("page_creator", "activity_creator")
     workflow.add_edge("activity_creator", END)
-    """
+        
     return workflow.compile()
 
 

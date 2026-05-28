@@ -51,6 +51,7 @@ def analyst_node(state: CourseState) -> CourseState:
         "Si algún dato requerido no se encuentra en el documento, omítelo o déjalo en blanco; bajo ningún concepto debes inventarlo. "
         "En el cronograma ('schedule'), solo usa el 'activity_name' que coincida con el nombre de una actividad definida en la lista de 'activities'. "
         "No repitas el objeto Activity completo dentro del schedule. "
+        "En 'modules' incluye solo las unidades de contenido del programa académico (Unidad 1, Unidad 2, etc.). "
         "REGLA CRÍTICA PARA EL JSON: Para evitar errores de formato (Invalid JSON control character), DEBES REEMPLAZAR todos los saltos de línea físicos por un simple espacio en blanco dentro de cualquier texto que extraigas. NO dejes saltos de línea literales (enters) ni uses '\\n' en los valores de texto."
     )
 
