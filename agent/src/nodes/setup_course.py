@@ -1,5 +1,6 @@
 from src.state import CourseState
-from src.tools.canvas_api import create_course, import_base_course_content
+from src.tools.canvas_api import create_course, import_base_course_content, list_course_files
+from src.utils.helpers import build_course_files_map
 from config import config
 
 def setup_course_node(state: CourseState) -> CourseState:
@@ -44,7 +45,18 @@ def setup_course_node(state: CourseState) -> CourseState:
         if "error" in import_res:
             print(f"Advertencia: No se pudo importar la estructura base: {import_res['error']}")
 
+    # Listamos los archivos del curso para construir el mapa
+    print("Listando archivos del curso en Canvas...")
+    course_files = list_course_files.invoke({"course_id": course_id})
+    files_map = {}
+    if isinstance(course_files, list):
+        print(f"Encontrados {len(course_files)} archivos en el curso. Construyendo mapa de archivos...")
+        files_map = build_course_files_map(course_files, config.domain, course_id)
+    else:
+        print(f"Advertencia: No se pudieron obtener los archivos del curso de Canvas (resultado: {course_files}).")
+
     return {
         **state,
-        "canvas_course_id": course_id
+        "canvas_course_id": course_id,
+        "course_files_map": files_map
     }

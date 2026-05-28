@@ -16,6 +16,7 @@ def test_graph_has_conditional_entry_points():
     assert "analyst" in node_names
     assert "setup_course" in node_names
     assert "module_generator" in node_names
+    assert "populate_special_modules" in node_names
     assert "activity_creator" in node_names
 
     for creator in CREATOR_NODES:

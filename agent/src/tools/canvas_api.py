@@ -77,8 +77,26 @@ def list_modules(course_id: Optional[str] = None) -> List[Dict]:
 @tool
 def create_assignment(name: str, description: str, course_id: Optional[str] = None, points_possible: float = 0.0, submission_types: List[str] = ["online_upload"]) -> Dict:
     """
-    Crea una nueva actividad (assignment) en el curso de Canvas.
+    Crea o actualiza una actividad (assignment) en el curso de Canvas.
+    Si ya existe una actividad con el mismo nombre, la actualiza para evitar duplicados.
     """
+    assignments = _canvas_request("GET", "/assignments?per_page=100", custom_course_id=course_id)
+    
+    if isinstance(assignments, list):
+        for a in assignments:
+            if a.get("name", "").strip().lower() == name.strip().lower():
+                assignment_id = a.get("id")
+                print(f"La actividad '{name}' ya existe (ID: {assignment_id}). Actualizándola...")
+                payload = {
+                    "assignment": {
+                        "description": description,
+                        "points_possible": points_possible,
+                        "submission_types": submission_types,
+                        "published": True
+                    }
+                }
+                return _canvas_request("PUT", f"/assignments/{assignment_id}", payload, custom_course_id=course_id)
+                
     payload = {
         "assignment": {
             "name": name,
@@ -96,7 +114,26 @@ def add_item_to_module(module_id: int, title: str, type: str, content_id: Option
     Agrega un ítem a un módulo existente.
     Si el tipo es 'Page', se debe proporcionar 'page_url' (el slug de la página).
     Para 'Assignment' o 'Discussion', se proporciona 'content_id'.
+    Si el ítem ya existe en el módulo, retorna el ítem existente para evitar duplicidad.
     """
+    existing_items = _canvas_request("GET", f"/modules/{module_id}/items?per_page=100", custom_course_id=course_id)
+    if isinstance(existing_items, list):
+        for item in existing_items:
+            match = False
+            if item.get("type") == type:
+                if type == "Page" and page_url:
+                    if item.get("page_url") == page_url or item.get("title", "").strip().lower() == title.strip().lower():
+                        match = True
+                elif content_id is not None:
+                    if str(item.get("content_id")) == str(content_id) or item.get("title", "").strip().lower() == title.strip().lower():
+                        match = True
+                else:
+                    if item.get("title", "").strip().lower() == title.strip().lower():
+                        match = True
+            if match:
+                print(f"El ítem '{title}' de tipo '{type}' ya existe en el módulo {module_id}. Omitiendo adición.")
+                return item
+
     payload = {
         "module_item": {
             "title": title,
@@ -126,9 +163,24 @@ def update_course_home_page(body: str, course_id: Optional[str] = None) -> Dict:
 @tool
 def create_page(title: str, body: str, course_id: Optional[str] = None) -> Dict:
     """
-    Crea una nueva página wiki en el curso de Canvas.
-    Retorna el objeto de la página creada (incluye 'url' que sirve como page_url).
+    Crea o actualiza una página wiki en el curso de Canvas.
+    Si ya existe una página con el mismo título, la actualiza para evitar duplicados.
     """
+    pages = _canvas_request("GET", "/pages?per_page=100", custom_course_id=course_id)
+    
+    if isinstance(pages, list):
+        for p in pages:
+            if p.get("title", "").strip().lower() == title.strip().lower():
+                url_slug = p.get("url")
+                print(f"La página '{title}' ya existe (slug: {url_slug}). Actualizándola...")
+                payload = {
+                    "wiki_page": {
+                        "body": body,
+                        "published": True
+                    }
+                }
+                return _canvas_request("PUT", f"/pages/{url_slug}", payload, custom_course_id=course_id)
+                
     payload = {
         "wiki_page": {
             "title": title,
@@ -141,9 +193,22 @@ def create_page(title: str, body: str, course_id: Optional[str] = None) -> Dict:
 @tool
 def create_discussion_topic(title: str, message: str, course_id: Optional[str] = None) -> Dict:
     """
-    Crea un nuevo foro de discusión (discussion topic) en el curso de Canvas.
-    Retorna el objeto del foro creado (incluye 'id').
+    Crea o actualiza un foro de discusión en el curso de Canvas.
+    Si ya existe un foro con el mismo título, lo actualiza para evitar duplicados.
     """
+    topics = _canvas_request("GET", "/discussion_topics?per_page=100", custom_course_id=course_id)
+    
+    if isinstance(topics, list):
+        for t in topics:
+            if t.get("title", "").strip().lower() == title.strip().lower():
+                topic_id = t.get("id")
+                print(f"El foro '{title}' ya existe (ID: {topic_id}). Actualizándolo...")
+                payload = {
+                    "message": message,
+                    "published": True
+                }
+                return _canvas_request("PUT", f"/discussion_topics/{topic_id}", payload, custom_course_id=course_id)
+                
     payload = {
         "title": title,
         "message": message,
@@ -158,3 +223,10 @@ def set_module_position(module_id: int, position: int, course_id: Optional[str] 
     """
     payload = {"module": {"position": position}}
     return _canvas_request("PUT", f"/modules/{module_id}", payload, custom_course_id=course_id)
+
+@tool
+def list_course_files(course_id: Optional[str] = None) -> List[Dict]:
+    """
+    Lista todos los archivos en el curso de Canvas (hasta 100 archivos).
+    """
+    return _canvas_request("GET", "/files?per_page=100", custom_course_id=course_id)

@@ -22,34 +22,77 @@ Tu tarea es generar el código HTML para la página de "Agenda de actividades" (
 
 Debes usar exactamente esta estructura HTML:
 
-<h2><img id="13808" style="display: block; margin-left: auto; margin-right: auto;" src="https://univallecolombia.instructure.com/courses/862/files/66540/preview" alt="Banner curso" width="100%" height="100%" data-api-endpoint="https://univallecolombia.instructure.com/api/v1/courses/862/files/66540" data-api-returntype="File" /></h2>
-
-<table style="border-collapse: collapse; width: 75.5295%; border-color: #e1e4e7; border-style: solid; margin-left: auto; margin-right: auto;" border="1" cellspacing="1" cellpadding="0">
+<h2><img id="13808" style="display: block; margin-left: auto; margin-right: auto;" src="https://univallecolombia.instructure.com/courses/863/files/67711/preview" alt="Banner curso" width="100%" height="100%" data-api-endpoint="https://univallecolombia.instructure.com/api/v1/courses/863/files/67711" data-api-returntype="File" /></h2>
+<table style="border-collapse: collapse; width: 66.035%; border-color: #e1e4e7; border-style: solid; margin-left: auto; margin-right: auto;" border="1" cellspacing="1" cellpadding="0">
     <caption>ACTIVIDADES DE APRENDIZAJE</caption>
     <tbody>
-        <tr style="height: 24.8px;">
-            <th style="vertical-align: middle; background-color: #f3f4f5; width: 11.9431%; height: 24.8px;" scope="col" align="center">UNIDAD</th>
-            <th style="vertical-align: middle; background-color: #f3f4f5; width: 13.7899%; height: 24.8px;" scope="col" align="center">SEMANAS</th>
-            <th style="vertical-align: middle; background-color: #f3f4f5; width: 27.3336%; height: 24.8px;" scope="col" align="center">ACTIVIDAD</th>
-            <th style="vertical-align: middle; background-color: #f3f4f5; width: 11.5737%; height: 24.8px;" scope="col" align="center">TIPO</th>
-            <th style="vertical-align: middle; background-color: #f3f4f5; width: 18.5918%; height: 24.8px;" scope="col" align="center">DEDICACIÓN</th>
-            <th style="vertical-align: middle; background-color: #f3f4f5; width: 16.7449%; height: 24.8px;" scope="col" align="center">VALORACIÓN</th>
+        <tr>
+            <th style="vertical-align: middle; background-color: #f3f4f5; width: 10%;" scope="col" align="center">UNIDAD</th>
+            <th style="vertical-align: middle; background-color: #f3f4f5; width: 10%;" scope="col" align="center">SEMANAS</th>
+            <th style="vertical-align: middle; background-color: #f3f4f5; width: 50%;" scope="col" align="center">ACTIVIDAD</th>
+            <th style="vertical-align: middle; background-color: #f3f4f5; width: 13%;" scope="col" align="center">TIPO</th>
+            <th style="vertical-align: middle; background-color: #f3f4f5; width: 12%;" scope="col" align="center">DEDICACI&Oacute;N</th>
+            <th style="vertical-align: middle; background-color: #f3f4f5; width: 11%;" scope="col" align="center">VALORACI&Oacute;N</th>
         </tr>
-        <!-- Las filas se agrupan por UNIDAD (index de modulo) usando rowspan -->
-        <!-- Dentro de la unidad, se agrupan por SEMANA usando rowspan si hay múltiples actividades en la misma semana -->
         <tr>
             <td style="text-align: center;" rowspan="3">1</td>
             <td style="text-align: center;" rowspan="2">1</td>
-            <td>Actividad 1. [Nombre de actividad 1]</td>
-            <td style="text-align: center;">[Formativa / Evaluativa]</td>
-            <td style="text-align: center;">[Dedicación en horas, ej: 20]</td>
-            <td style="text-align: center;">[Valoración en %, ej: N/A o 20%]</td>
+            <td>Actividad 1. Comprender la dificultad: el conflicto como punto de partida.</td>
+            <td style="text-align: center;">Formativa</td>
+            <td style="text-align: center;">20</td>
+            <td style="text-align: center;"></td>
         </tr>
-        <!-- ... más filas ... -->
-        <!-- Fila de total al final -->
-        <tr style="height: 34.8px;">
+        <tr>
+            <td>Actividad 2. El conflicto en perspectiva humana, social y psicol&oacute;gica.</td>
+            <td style="text-align: center;">Formativa</td>
+            <td style="text-align: center;">4</td>
+            <td style="text-align: center;"></td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">2</td>
+            <td>Actividad 3. Miradas al conflicto: expresarlo, pensarlo y transformarlo.</td>
+            <td style="text-align: center;">Evaluativa</td>
+            <td style="text-align: center;">24</td>
+            <td style="text-align: center;">20%</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;" rowspan="3">2</td>
+            <td style="text-align: center;">3</td>
+            <td>Actividad 4. Mecanismos alternativos de negociaci&oacute;n.</td>
+            <td style="text-align: center;">Evaluativa</td>
+            <td style="text-align: center;">24</td>
+            <td style="text-align: center;">20%</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;" rowspan="2">4</td>
+            <td>Actividad 5. La negociaci&oacute;n como puente: identificar intereses y posiciones.</td>
+            <td style="text-align: center;">Evaluativa</td>
+            <td style="text-align: center;">20</td>
+            <td style="text-align: center;">20%</td>
+        </tr>
+        <tr>
+            <td>Actividad 6. Valoraci&oacute;n del proceso de negociaci&oacute;n.</td>
+            <td style="text-align: center;">Formativa</td>
+            <td style="text-align: center;">4</td>
+            <td style="text-align: center;"></td>
+        </tr>
+        <tr>
+            <td style="text-align: center;" rowspan="2">3</td>
+            <td style="text-align: center;" rowspan="2">5</td>
+            <td>Actividad 7. Decidir con prop&oacute;sito: t&eacute;cnicas para resolver problemas.</td>
+            <td style="text-align: center;">Evaluativa</td>
+            <td style="text-align: center;">24</td>
+            <td style="text-align: center;">20%</td>
+        </tr>
+        <tr>
+            <td>Actividad 8. Integrar para transformar: an&aacute;lisis final.</td>
+            <td style="text-align: center;">Evaluativa</td>
+            <td style="text-align: center;">24</td>
+            <td style="text-align: center;">20%</td>
+        </tr>
+        <tr>
             <td style="text-align: right; padding: 5px;" colspan="4">Total horas</td>
-            <td style="text-align: center;">[Suma total de horas de dedicación de todas las actividades]</td>
+            <td style="text-align: center;">144</td>
             <td style="text-align: center;">100%</td>
         </tr>
     </tbody>
@@ -97,6 +140,11 @@ Cronograma / Dedicación:
         print(f"Error generando HTML de Agenda con LLM: {e}")
         return {"errors": [f"Error generando Agenda: {str(e)}"]}
     
+    # Resolver URLs de archivos e imágenes
+    from src.utils.helpers import resolve_html_links
+    files_map = state.get("course_files_map") or {}
+    html_content = resolve_html_links(html_content, files_map, config.domain, course_id)
+
     result = create_page.invoke({
         "title": "Agenda de actividades",
         "body": html_content,

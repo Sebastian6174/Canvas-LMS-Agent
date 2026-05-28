@@ -52,12 +52,12 @@ class TestRouteAfterAnalyst:
 
 
 class TestRouteAfterSetup:
-    def test_fan_out_to_creators(self):
+    def test_continue_to_module_generator(self):
         state = _base_state(
             canvas_course_id="862",
             course_structure={"name": "Curso"},
         )
-        assert route_after_setup(state) == CREATOR_NODES
+        assert route_after_setup(state) == "module_generator"
 
     def test_stop_without_course_id(self):
         state = _base_state(course_structure={"name": "Curso"})
@@ -73,9 +73,9 @@ class TestRouteAfterSetup:
 
 
 class TestRouteAfterModules:
-    def test_continue_to_activities(self):
-        state = _base_state(module_mapping={"Introducción al curso": 1})
-        assert route_after_modules(state) == "activity_creator"
+    def test_fan_out_to_creators(self):
+        state = _base_state(module_mapping={"Introducción al curso y ayuda": 1})
+        assert route_after_modules(state) == CREATOR_NODES
 
     def test_stop_without_mapping(self):
         assert route_after_modules(_base_state()) == END

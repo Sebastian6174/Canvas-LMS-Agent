@@ -48,4 +48,5 @@ class CourseState(TypedDict):
     credits_page_url: Optional[str]
     is_valid: bool
     errors: Annotated[List[str], operator.add]
-    
+    downloadable_program: str
+    course_files_map: Optional[Dict[str, str]]
