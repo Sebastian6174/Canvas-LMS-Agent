@@ -28,7 +28,7 @@ def _get_or_create_module(
 
 def module_generator_node(state: CourseState) -> CourseState:
     """
-    Crea los módulos vacíos en Canvas: introducción, créditos y los del programa.
+    Crea los módulos vacíos en Canvas: introducción, créditos y las unidades del programa.
     No requiere LLM; itera sobre la estructura del curso en el estado.
     """
     if state.get("errors"):
@@ -40,7 +40,7 @@ def module_generator_node(state: CourseState) -> CourseState:
     if not structure or not course_id:
         return {**state, "errors": ["Faltan datos para crear los módulos"]}
 
-    print(f"Creando módulos vacíos para el curso {course_id}...")
+    print(f"Creando unidades (módulos Canvas) para el curso {course_id}...")
 
     existing_mods = list_modules.invoke({"course_id": course_id})
     existing_mods_by_name: dict[str, int] = {}

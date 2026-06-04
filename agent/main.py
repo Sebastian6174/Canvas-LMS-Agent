@@ -13,7 +13,7 @@ def _print_course_summary(structure) -> None:
     print(f"  Programa: {structure.academic_program}")
     print(f"  Semestre: {structure.semester}")
     print(f"  Docente: {structure.teacher}")
-    print(f"  Módulos: {len(structure.modules)}")
+    print(f"  Unidades: {len(structure.modules)}")
     print(f"  Actividades: {len(structure.activities)}")
 
 
@@ -91,13 +91,13 @@ def _print_pipeline_report(final_state: dict) -> int:
     # 4. Módulos
     module_mapping = final_state.get("module_mapping") or {}
     modules_ok = len(module_mapping) > 0
-    print(f"\n[4] Módulos en Canvas: {_status(modules_ok)}")
+    print(f"\n[4] Unidades en Canvas: {_status(modules_ok)}")
     if module_mapping:
         for name, mod_id in module_mapping.items():
             print(f"  - {name} (id={mod_id})")
 
     if not modules_ok:
-        print("\nPipeline detenido: no se crearon módulos.")
+        print("\nPipeline detenido: no se crearon unidades.")
         _print_errors(errors)
         return 1
 

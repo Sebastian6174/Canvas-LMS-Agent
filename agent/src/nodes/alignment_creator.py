@@ -104,7 +104,13 @@ REGLAS DE GENERACIÓN:
     
     activities_str = ""
     for act in structure.activities:
-        activities_str += f"- Nombre: {act.name}\n  Descripción: {act.description}\n  Tipo: {act.type}\n  RA Relacionado: {act.related_learning_outcome}\n\n"
+        activities_str += (
+            f"- Nombre: {act.name}\n"
+            f"  Descripción: {act.description}\n"
+            f"  Tipo de actividad: {act.activity_type}\n"
+            f"  Naturaleza: {act.evaluation_type}\n"
+            f"  RA Relacionado: {act.related_learning_outcome}\n\n"
+        )
 
     human_prompt = f"""Información para alinear:
 Resultados de Aprendizaje (R.A.) del Curso:

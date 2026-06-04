@@ -106,14 +106,25 @@ REGLAS DE GENERACIÓN:
 5. Tu respuesta SOLO debe contener código HTML válido. Sin markdown ticks de ```html.
 """
 
+    from src.utils.helpers import activities_for_unit
+
     # Construimos la información estructurada que necesita el LLM
     modules_info = ""
     for idx, mod in enumerate(structure.modules):
-        modules_info += f"Unidad {idx+1}: {mod.name}\nActividades en esta unidad: {', '.join(mod.activities)}\n\n"
+        unit_activity_names = [a.name for a in activities_for_unit(structure.activities, mod.name)]
+        modules_info += (
+            f"Unidad {idx+1}: {mod.name}\n"
+            f"Actividades en esta unidad: {', '.join(unit_activity_names)}\n\n"
+        )
         
     activities_info = ""
     for act in structure.activities:
-        activities_info += f"- Actividad: {act.name}\n  Tipo: {act.type}\n  Valoración (ponderación): {act.weight}%\n\n"
+        activities_info += (
+            f"- Actividad: {act.name}\n"
+            f"  Tipo de actividad: {act.activity_type}\n"
+            f"  Naturaleza: {act.evaluation_type}\n"
+            f"  Valoración (ponderación): {act.weight}%\n\n"
+        )
         
     schedule_info = ""
     for item in structure.schedule:

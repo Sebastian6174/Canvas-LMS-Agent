@@ -1,26 +1,68 @@
 import operator
 from typing import TypedDict, Optional, List, Dict, Annotated
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Activity(BaseModel):
-    name: str
+    name: str = Field(
+        description="Título corto sin prefijo 'Actividad N.' (el sistema añade el nombre completo en Canvas)"
+    )
     description: str
-    duration : int
-    type: str 
-    rubric: Optional[str]
+    duration: int
+    activity_type: str = Field(
+        default="Otros",
+        description=(
+            "Tipo de actividad: Videoconferencia, Taller, Foro, Tarea, Infografía, Ensayo, "
+            "Quiz, Evaluación, Cuadro comparativo, Mapa mental, Entrega u Otros"
+        ),
+    )
+    evaluation_type: str = Field(
+        default="",
+        description="Formativa o Evaluativa según el documento o la ponderación",
+    )
+    number: int = Field(
+        default=0,
+        description="Número secuencial de la actividad en el curso (1, 2, 3...)",
+    )
+    rubric: Optional[str] = None
     related_learning_outcome: str
-    weight: float    
-    
+    weight: float
+    module_name: str = Field(
+        default="",
+        description="Nombre exacto de la unidad a la que pertenece (debe coincidir con modules[].name)",
+    )
+    resources: List[str] = Field(
+        default_factory=list,
+        description="Recursos o materiales de estudio indicados para esta actividad en el documento",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_type_field(cls, data):
+        """Compatibilidad si el modelo devuelve el antiguo campo 'type'."""
+        if not isinstance(data, dict) or "type" not in data:
+            return data
+        legacy = data.pop("type")
+        if legacy in ("Formativa", "Evaluativa") and not data.get("evaluation_type"):
+            data["evaluation_type"] = legacy
+            data.setdefault("activity_type", "Otros")
+        elif not data.get("activity_type"):
+            data["activity_type"] = legacy
+        return data
+
+
 class ScheduleItem(BaseModel):
     week: int
     activity_name: str = Field(description="Nombre de la actividad (debe coincidir con uno en la lista de actividades)")
     time_commitment: str
 
 class Module(BaseModel):
-    name: str
+    """Unidad de aprendizaje del programa (módulo de contenido en Canvas)."""
+    name: str = Field(
+        description="Nombre de la unidad, p. ej. 'Unidad 1. Título del tema' (no usar 'eje temático')"
+    )
     description: str
-    activities: List[str] # Lista de nombres de actividades
+    activities: List[str] = Field(description="Nombres de actividades que pertenecen a esta unidad")
 
 class CourseStructure(BaseModel):
     name: str
