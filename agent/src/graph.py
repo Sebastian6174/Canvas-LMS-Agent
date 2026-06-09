@@ -18,6 +18,7 @@ from src.nodes.module_generator import module_generator_node
 from src.nodes.populate_special_modules import populate_special_modules_node
 from src.nodes.activity_creator import activity_creator_node
 from src.nodes.unit_pages_creator import unit_pages_creator_node
+from src.nodes.rubrics_creator import rubrics_creator_node
 
 
 def create_graph():
@@ -34,6 +35,7 @@ def create_graph():
     workflow.add_node("populate_special_modules", populate_special_modules_node)
     workflow.add_node("unit_pages_creator", unit_pages_creator_node)
     workflow.add_node("activity_creator", activity_creator_node)
+    workflow.add_node("rubrics_creator", rubrics_creator_node)
 
     workflow.add_edge(START, "analyst")
     workflow.add_conditional_edges("analyst", route_after_analyst)
@@ -46,7 +48,8 @@ def create_graph():
     workflow.add_edge("populate_special_modules", "page_creator")
     workflow.add_edge("page_creator", "unit_pages_creator")
     workflow.add_edge("unit_pages_creator", "activity_creator")
-    workflow.add_edge("activity_creator", END)
+    workflow.add_edge("activity_creator", "rubrics_creator")
+    workflow.add_edge("rubrics_creator", END)
         
     return workflow.compile()
 

@@ -64,6 +64,18 @@ class Module(BaseModel):
     description: str
     activities: List[str] = Field(description="Nombres de actividades que pertenecen a esta unidad")
 
+class RubricCriterion(BaseModel):
+    name: str = Field(description="Nombre o descripción del criterio (ej: 'Criterio 1: Comprensión del concepto')")
+    points: Optional[float] = Field(default=None, description="Puntos posibles para este criterio (opcional)")
+    excelente: str = Field(description="Descripción del nivel Excelente")
+    en_desarrollo: str = Field(description="Descripción del nivel En desarrollo")
+    basico: str = Field(description="Descripción del nivel Básico")
+    insuficiente: str = Field(description="Descripción del nivel Insuficiente")
+
+class Rubric(BaseModel):
+    name: str = Field(description="Nombre/Número unificado de la rúbrica (ej: 'Rúbrica N. 1', 'Rúbrica 2')")
+    criteria: List[RubricCriterion] = Field(description="Lista de criterios de evaluación para esta rúbrica")
+
 class CourseStructure(BaseModel):
     name: str
     academic_program: str
@@ -77,6 +89,7 @@ class CourseStructure(BaseModel):
     modules: List[Module]
     activities: List[Activity]
     schedule: List[ScheduleItem]
+    rubrics: List[Rubric] = Field(default_factory=list, description="Lista de rúbricas inferidas del documento")
 
 class CourseState(TypedDict):
     doc_id: str
@@ -88,6 +101,7 @@ class CourseState(TypedDict):
     agenda_page_url: Optional[str]
     forum_discussion_id: Optional[int]
     credits_page_url: Optional[str]
+    rubrics_page_url: Optional[str]
     is_valid: bool
     errors: Annotated[List[str], operator.add]
     downloadable_program: str

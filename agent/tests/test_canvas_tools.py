@@ -10,6 +10,7 @@ from src.tools.canvas_api import (
     create_page,
     create_discussion_topic,
     set_module_position,
+    list_course_files,
 )
 
 EXPECTED_TOOLS = [
@@ -23,6 +24,7 @@ EXPECTED_TOOLS = [
     create_page,
     create_discussion_topic,
     set_module_position,
+    list_course_files,
 ]
 
 
