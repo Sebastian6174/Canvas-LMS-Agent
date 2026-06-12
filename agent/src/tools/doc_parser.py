@@ -1,7 +1,7 @@
 import os.path
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from config import config
+from agent.config import config
 
 SCOPES = ['https://www.googleapis.com/auth/documents.readonly', 'https://www.googleapis.com/auth/drive.readonly']
 

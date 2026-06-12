@@ -23,7 +23,7 @@ def activity_creator_node(state: CourseState) -> CourseState:
 
     print(f"Creando actividades para el curso {course_id}...")
 
-    assignment_mapping = {}
+    canvas_assignment_ids = {}
     for act in structure.activities:
         print(f"Creando actividad: {act.name}")
         description_html = wrap_activity_description_html(
@@ -43,7 +43,7 @@ def activity_creator_node(state: CourseState) -> CourseState:
             print(f"Error al crear actividad {act.name}: {res['error']}")
             continue
             
-        assignment_mapping[act.name] = res.get("id")
+        canvas_assignment_ids[act.name] = res.get("id")
 
     for mod in structure.modules:
         mod_id = module_mapping.get(mod.name)
@@ -52,7 +52,7 @@ def activity_creator_node(state: CourseState) -> CourseState:
             continue
 
         for act in activities_for_unit(structure.activities, mod.name):
-            assign_id = assignment_mapping.get(act.name)
+            assign_id = canvas_assignment_ids.get(act.name)
             if not assign_id:
                 print(
                     f"No se encontró assignment para '{act.name}' "
@@ -69,4 +69,4 @@ def activity_creator_node(state: CourseState) -> CourseState:
                 "course_id": course_id,
             })
 
-    return state
+    return {**state, "canvas_assignment_ids": canvas_assignment_ids}

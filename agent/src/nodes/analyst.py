@@ -166,6 +166,7 @@ def analyst_node(state: CourseState) -> CourseState:
         "Infiere correctamente la correspondencia basándote en la información de las tablas de cada actividad y los encabezados de las tablas de rúbricas (ej. si una sección rotulada como 'Rúbrica No. 2' en la pestaña 'No4' corresponde a la actividad 8 que declara usar la 'Rúbrica 4', infiere que su nombre correcto es 'Rúbrica 4' o asóciala adecuadamente con la actividad 8)."
         f"{activity_types_prompt_section()} "
         "REGLA CRÍTICA PARA EL JSON: Para evitar errores de formato (Invalid JSON control character), DEBES REEMPLAZAR todos los saltos de línea físicos por un simple espacio en blanco dentro de cualquier texto que extraigas. NO dejes saltos de línea literales (enters) ni uses '\\n' en los valores de texto."
+        "RECUERDA, EVITA SALTOS DE LÍNEA PERO NO POR ELLO OMITAS INFORMACIÓN"
     )
 
     human_prompt = f"Aquí está el contenido del documento:\n\n{full_text}"

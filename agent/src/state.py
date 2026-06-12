@@ -101,8 +101,8 @@ class CourseState(TypedDict):
     agenda_page_url: Optional[str]
     forum_discussion_id: Optional[int]
     credits_page_url: Optional[str]
-    rubrics_page_url: Optional[str]
     is_valid: bool
     errors: Annotated[List[str], operator.add]
     downloadable_program: str
     course_files_map: Optional[Dict[str, str]]
+    canvas_assignment_ids: Optional[Dict[str, int]]

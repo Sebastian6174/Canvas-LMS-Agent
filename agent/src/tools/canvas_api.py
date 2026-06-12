@@ -2,7 +2,7 @@ import time
 import requests
 from typing import Optional, List, Dict, Any
 from langchain_core.tools import tool
-from config import config
+from agent.config import config
 
 MIGRATION_POLL_INTERVAL_SEC = 3
 MIGRATION_TIMEOUT_SEC = 300
@@ -183,6 +183,77 @@ def create_assignment(name: str, description: str, course_id: Optional[str] = No
         }
     }
     return _canvas_request("POST", "/assignments", payload, custom_course_id=course_id)
+
+@tool
+def list_assignments(course_id: Optional[str] = None) -> List[Dict]:
+    """
+    Lista las actividades (assignments) existentes en el curso.
+    """
+    return _canvas_request("GET", "/assignments?per_page=100", custom_course_id=course_id)
+
+def _rubric_creation_criteria(criteria: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """
+    Canvas creates real criterion/rating IDs. Sending synthetic IDs can make the
+    Rubrics endpoint fail with a 500 instead of returning a validation error.
+    Ratings must also be an indexed hash, not a JSON list; Canvas reads
+    criterion_data[:ratings].values internally.
+    """
+    cleaned_criteria = {}
+    for index, criterion in enumerate(criteria):
+        cleaned = {
+            key: value
+            for key, value in criterion.items()
+            if key not in {"id", "ratings"}
+        }
+        cleaned["ratings"] = {
+            str(rating_index): {
+                key: value
+                for key, value in rating.items()
+                if key not in {"id", "criterion_id"}
+            }
+            for rating_index, rating in enumerate(criterion.get("ratings", []))
+        }
+        cleaned_criteria[str(index)] = cleaned
+    return cleaned_criteria
+
+@tool
+def create_or_update_assignment_rubric(
+    title: str,
+    criteria: List[Dict[str, Any]],
+    assignment_id: int,
+    course_id: Optional[str] = None,
+    use_for_grading: bool = True,
+) -> Dict:
+    """
+    Crea o actualiza una rúbrica de Canvas y la asocia a un assignment.
+    """
+    rubrics = _canvas_request("GET", "/rubrics?per_page=100", custom_course_id=course_id)
+    rubric_id = None
+    if isinstance(rubrics, list):
+        for rubric in rubrics:
+            if rubric.get("title", "").strip().lower() == title.strip().lower():
+                rubric_id = rubric.get("id")
+                break
+
+    payload = {
+        "rubric": {
+            "title": title,
+            "free_form_criterion_comments": False,
+            "criteria": _rubric_creation_criteria(criteria),
+        },
+        "rubric_association": {
+            "association_id": assignment_id,
+            "association_type": "Assignment",
+            "use_for_grading": use_for_grading,
+            "purpose": "grading",
+        },
+    }
+
+    if rubric_id:
+        print(f"La rúbrica '{title}' ya existe (ID: {rubric_id}). Actualizándola...")
+        return _canvas_request("PUT", f"/rubrics/{rubric_id}", payload, custom_course_id=course_id)
+
+    return _canvas_request("POST", "/rubrics", payload, custom_course_id=course_id)
 
 @tool
 def add_item_to_module(module_id: int, title: str, type: str, content_id: Optional[Any] = None, page_url: Optional[str] = None, course_id: Optional[str] = None) -> Dict:
