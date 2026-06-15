@@ -121,9 +121,10 @@ def rubrics_creator_node(state: CourseState) -> CourseState:
             )
             continue
 
+        rubric_title = activity.name
         result = create_or_update_assignment_rubric.invoke(
             {
-                "title": rubric.name,
+                "title": rubric_title,
                 "criteria": _canvas_criteria_from_rubric(rubric),
                 "assignment_id": assignment_id,
                 "course_id": course_id,
@@ -132,9 +133,12 @@ def rubrics_creator_node(state: CourseState) -> CourseState:
         )
 
         if "error" in result:
-            print(f"Error creando rubrica '{rubric.name}': {result['error']}")
-            return {**state, "errors": [f"Error creando rubrica: {rubric.name}"]}
+            print(
+                f"Error creando rubrica '{rubric_title}' "
+                f"(origen: '{rubric.name}'): {result['error']}"
+            )
+            return {**state, "errors": [f"Error creando rubrica: {rubric_title}"]}
 
-        print(f"Rubrica '{rubric.name}' asociada a '{activity.name}'.")
+        print(f"Rubrica '{rubric_title}' asociada a '{activity.name}' (origen: '{rubric.name}').")
 
     return state

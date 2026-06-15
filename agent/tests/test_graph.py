@@ -20,6 +20,7 @@ def test_graph_has_conditional_entry_points():
     assert "unit_pages_creator" in node_names
     assert "activity_creator" in node_names
     assert "rubrics_creator" in node_names
+    assert "syllabus_creator" in node_names
 
     for creator in CREATOR_NODES:
         assert creator in node_names

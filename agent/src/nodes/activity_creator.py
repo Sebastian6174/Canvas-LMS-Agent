@@ -1,8 +1,31 @@
 from src.state import CourseState
-from src.tools.canvas_api import create_assignment, add_item_to_module
+from src.tools.canvas_api import add_item_to_module, create_assignment, delete_assignment, list_assignments
 from src.activity_types import wrap_activity_description_html
 from src.utils.helpers import activities_for_unit
 from config import config
+
+
+def _normalize_assignment_name(name: str) -> str:
+    return (name or "").strip().lower()
+
+
+def _delete_stale_assignments(course_id: str, current_activity_names: set[str]) -> None:
+    assignments = list_assignments.invoke({"course_id": course_id})
+    if not isinstance(assignments, list):
+        print("No se pudieron listar las actividades existentes para limpiar el Syllabus.")
+        return
+
+    for assignment in assignments:
+        assignment_name = assignment.get("name", "")
+        assignment_id = assignment.get("id")
+        if not assignment_id or _normalize_assignment_name(assignment_name) in current_activity_names:
+            continue
+
+        print(f"Eliminando actividad antigua de Canvas: {assignment_name}")
+        result = delete_assignment.invoke({"assignment_id": assignment_id, "course_id": course_id})
+        if "error" in result:
+            print(f"No se pudo eliminar la actividad antigua '{assignment_name}': {result['error']}")
+
 
 def activity_creator_node(state: CourseState) -> CourseState:
     """
@@ -22,6 +45,9 @@ def activity_creator_node(state: CourseState) -> CourseState:
         return {**state, "errors": ["No hay módulos creados para asignar actividades"]}
 
     print(f"Creando actividades para el curso {course_id}...")
+
+    current_activity_names = {_normalize_assignment_name(act.name) for act in structure.activities}
+    _delete_stale_assignments(course_id, current_activity_names)
 
     canvas_assignment_ids = {}
     for act in structure.activities:

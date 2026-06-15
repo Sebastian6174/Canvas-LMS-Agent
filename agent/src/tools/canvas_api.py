@@ -2,7 +2,7 @@ import time
 import requests
 from typing import Optional, List, Dict, Any
 from langchain_core.tools import tool
-from agent.config import config
+from config import config
 
 MIGRATION_POLL_INTERVAL_SEC = 3
 MIGRATION_TIMEOUT_SEC = 300
@@ -191,6 +191,14 @@ def list_assignments(course_id: Optional[str] = None) -> List[Dict]:
     """
     return _canvas_request("GET", "/assignments?per_page=100", custom_course_id=course_id)
 
+
+@tool
+def delete_assignment(assignment_id: int, course_id: Optional[str] = None) -> Dict:
+    """
+    Elimina una actividad (assignment) del curso de Canvas.
+    """
+    return _canvas_request("DELETE", f"/assignments/{assignment_id}", custom_course_id=course_id)
+
 def _rubric_creation_criteria(criteria: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """
     Canvas creates real criterion/rating IDs. Sending synthetic IDs can make the
@@ -306,6 +314,30 @@ def update_course_home_page(body: str, course_id: Optional[str] = None) -> Dict:
         }
     }
     return _canvas_request("PUT", "/front_page", payload, custom_course_id=course_id)
+
+
+@tool
+def update_course_syllabus(
+    body: str,
+    course_id: Optional[str] = None,
+    make_default_view: bool = False,
+    show_course_summary: bool = False,
+) -> Dict:
+    """
+    Actualiza el contenido del Syllabus/Programa del curso en Canvas.
+    """
+    target_course_id = course_id or config.course_id
+    payload = {
+        "course": {
+            "syllabus_body": body,
+            "syllabus_course_summary": show_course_summary,
+        }
+    }
+    if make_default_view:
+        payload["course"]["default_view"] = "syllabus"
+
+    return _canvas_request("PUT", f"/courses/{target_course_id}", payload, custom_course_id=target_course_id)
+
 
 @tool
 def create_page(title: str, body: str, course_id: Optional[str] = None) -> Dict:
