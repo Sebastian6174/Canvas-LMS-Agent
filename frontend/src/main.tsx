@@ -1,4 +1,4 @@
-import React, { FormEvent, useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AlertCircle,
@@ -54,6 +54,24 @@ type RunResponse = {
   summary?: RunSummary | null;
 };
 
+type RunCreateResponse = {
+  ok: boolean;
+  runId?: string;
+  error?: string;
+};
+
+type RunEvent = {
+  type: string;
+  message?: string;
+  ok?: boolean;
+  exitCode?: number;
+  error?: string;
+  logs?: string;
+  summary?: RunSummary | null;
+};
+
+type StepStatus = "idle" | "running" | "success" | "error";
+
 const defaultSteps: FlowStep[] = [
   { id: "analyst", label: "Analista", description: "Lee Google Docs e infiere la estructura del curso." },
   { id: "setup_course", label: "Configurar curso", description: "Prepara el curso de Canvas." },
@@ -76,11 +94,20 @@ const initialConfig: AgentConfig = {
   openrouter_model: "inclusionai/ring-2.6-1t",
 };
 
+const initialStepStatuses = () =>
+  Object.fromEntries(defaultSteps.map((step) => [step.id, "idle" as StepStatus]));
+
 function App() {
   const [config, setConfig] = useState<AgentConfig>(initialConfig);
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<RunResponse | null>(null);
   const [logs, setLogs] = useState("");
+  const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>(initialStepStatuses);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    return () => eventSourceRef.current?.close();
+  }, []);
 
   const stepState = useMemo(() => {
     if (isRunning) return "running";
@@ -92,24 +119,108 @@ function App() {
     event.preventDefault();
     setIsRunning(true);
     setResult(null);
-    setLogs("Ejecutando agente...");
+    setLogs("");
+    setStepStatuses(initialStepStatuses());
+    eventSourceRef.current?.close();
 
     try {
-      const response = await fetch("/api/run-agent", {
+      const response = await fetch("/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ config }),
       });
-      const data = (await response.json()) as RunResponse;
-      setResult(data);
-      setLogs(data.logs || data.error || "");
+      const data = (await response.json()) as RunCreateResponse;
+      if (!response.ok || !data.ok || !data.runId) {
+        throw new Error(data.error || "No se pudo iniciar la ejecucion.");
+      }
+      subscribeToRun(data.runId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error desconocido";
       setResult({ ok: false, error: message });
       setLogs(message);
-    } finally {
       setIsRunning(false);
     }
+  }
+
+  function subscribeToRun(runId: string) {
+    const eventSource = new EventSource(`/api/runs/${runId}/events`);
+    eventSourceRef.current = eventSource;
+
+    eventSource.addEventListener("started", (event) => {
+      const data = parseRunEvent(event);
+      appendLog(`${data.message || "Ejecucion iniciada."}\n`);
+    });
+
+    eventSource.addEventListener("log", (event) => {
+      const data = parseRunEvent(event);
+      if (data.message) {
+        appendLog(data.message);
+        markStepFromLog(data.message);
+      }
+    });
+
+    eventSource.addEventListener("done", (event) => {
+      const data = parseRunEvent(event);
+      setResult({
+        ok: Boolean(data.ok),
+        exitCode: data.exitCode,
+        logs: data.logs,
+        summary: data.summary,
+      });
+      finishSteps(Boolean(data.ok));
+      setIsRunning(false);
+      eventSource.close();
+      eventSourceRef.current = null;
+    });
+
+    eventSource.addEventListener("error", (event) => {
+      if ("data" in event && event.data) {
+        const data = parseRunEvent(event);
+        const message = data.error || "La ejecucion fallo.";
+        setResult({ ok: false, error: message, logs: data.logs, summary: data.summary });
+        appendLog(`\n${message}`);
+        finishSteps(false);
+      } else {
+        setResult({ ok: false, error: "Se perdio la conexion con el servidor de eventos." });
+        finishSteps(false);
+      }
+      setIsRunning(false);
+      eventSource.close();
+      eventSourceRef.current = null;
+    });
+  }
+
+  function appendLog(message: string) {
+    setLogs((current) => `${current}${message}`);
+  }
+
+  function markStepFromLog(message: string) {
+    const stepId = inferStepId(message);
+    if (!stepId) return;
+
+    setStepStatuses((current) => {
+      const next = { ...current };
+      const activeIndex = defaultSteps.findIndex((step) => step.id === stepId);
+      defaultSteps.forEach((step, index) => {
+        if (index < activeIndex && next[step.id] !== "error") next[step.id] = "success";
+        if (index === activeIndex && next[step.id] !== "error") next[step.id] = "running";
+        if (index > activeIndex && next[step.id] !== "error") next[step.id] = "idle";
+      });
+      return next;
+    });
+  }
+
+  function finishSteps(ok: boolean) {
+    setStepStatuses((current) =>
+      Object.fromEntries(
+        defaultSteps.map((step) => {
+          const status = current[step.id];
+          if (status === "running") return [step.id, ok ? "success" : "error"];
+          if (status === "idle") return [step.id, ok ? "success" : "idle"];
+          return [step.id, status];
+        }),
+      ),
+    );
   }
 
   function updateField<K extends keyof AgentConfig>(key: K, value: AgentConfig[K]) {
@@ -177,7 +288,7 @@ function App() {
           <PanelTitle icon={<BookOpen size={18} />} title="Flujo visual" />
           <div className="flow-track">
             {defaultSteps.map((step, index) => (
-              <FlowNode key={step.id} step={step} index={index} status={stepState} active={isRunning && index === 0} />
+              <FlowNode key={step.id} step={step} index={index} status={stepStatuses[step.id]} />
             ))}
           </div>
         </section>
@@ -213,9 +324,9 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-function FlowNode({ step, index, status, active }: { step: FlowStep; index: number; status: string; active: boolean }) {
+function FlowNode({ step, index, status }: { step: FlowStep; index: number; status: StepStatus }) {
   return (
-    <article className={`flow-node ${status} ${active ? "active" : ""}`}>
+    <article className={`flow-node ${status}`}>
       <div className="node-marker">
         {status === "success" ? <CheckCircle2 size={18} /> : status === "error" ? <AlertCircle size={18} /> : <span>{index + 1}</span>}
       </div>
@@ -225,6 +336,39 @@ function FlowNode({ step, index, status, active }: { step: FlowStep; index: numb
       </div>
     </article>
   );
+}
+
+function parseRunEvent(event: Event): RunEvent {
+  const messageEvent = event as MessageEvent<string>;
+  return JSON.parse(messageEvent.data) as RunEvent;
+}
+
+function inferStepId(message: string): string | null {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("reading document") || normalized.includes("inferring course structure")) return "analyst";
+  if (normalized.includes("creando curso") || normalized.includes("usando curso existente") || normalized.includes("listando archivos")) {
+    return "setup_course";
+  }
+  if (normalized.includes("creando unidades") || normalized.includes("creando módulo") || normalized.includes("creando modulo")) {
+    return "module_generator";
+  }
+  if (
+    normalized.includes("generando página de agenda") ||
+    normalized.includes("generando pagina de agenda") ||
+    normalized.includes("generando página de alineación") ||
+    normalized.includes("generando pagina de alineacion") ||
+    normalized.includes("generando foro") ||
+    normalized.includes("generando página de créditos") ||
+    normalized.includes("generando pagina de creditos")
+  ) {
+    return "content_creators";
+  }
+  if (normalized.includes("configurando página de inicio") || normalized.includes("configurando pagina de inicio")) return "page_creator";
+  if (normalized.includes("creando páginas de unidad") || normalized.includes("creando paginas de unidad")) return "unit_pages_creator";
+  if (normalized.includes("creando actividades")) return "activity_creator";
+  if (normalized.includes("creando rubricas") || normalized.includes("creando rúbricas")) return "rubrics_creator";
+  if (normalized.includes("creando syllabus")) return "syllabus_creator";
+  return null;
 }
 
 function Summary({ result }: { result: RunResponse | null }) {

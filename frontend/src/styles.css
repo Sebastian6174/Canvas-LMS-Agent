@@ -240,9 +240,19 @@ h1 {
   width: 34px;
 }
 
-.flow-node.running.active,
+.flow-node.running,
 .flow-node.success {
   border-color: #6db196;
+}
+
+.flow-node.running .node-marker {
+  background: #fff7e8;
+  color: #8a4f08;
+}
+
+.flow-node.success .node-marker {
+  background: #eaf7f1;
+  color: #16704b;
 }
 
 .flow-node.error {

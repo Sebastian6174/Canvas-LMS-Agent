@@ -9,7 +9,9 @@ MIGRATION_TIMEOUT_SEC = 300
 
 # Canvas API Helper
 def _canvas_request(method: str, endpoint: str, data: Optional[Dict] = None, custom_course_id: Optional[str] = None) -> Dict:
-    """Helper to make requests to the Canvas API."""
+    """
+    Función auxiliar que permite realizar peticiones a la API de Canvas
+    """
     domain = config.domain
     # Use custom_course_id if provided, otherwise fallback to config
     target_course_id = custom_course_id or config.course_id
@@ -51,7 +53,9 @@ def create_course(name: str, course_code: str, account_id: str = "1") -> Dict:
     return _canvas_request("POST", f"/accounts/{account_id}/courses", payload)
 
 def _list_all_course_files(course_id: str) -> List[Dict[str, Any]] | Dict[str, Any]:
-    """Lista todos los archivos del curso (paginado)."""
+    """
+    Lista todos los archivos del curso (paginado).
+    """
     all_files: List[Dict[str, Any]] = []
     page = 1
     while True:
@@ -72,6 +76,9 @@ def _list_all_course_files(course_id: str) -> List[Dict[str, Any]] | Dict[str, A
 
 
 def _wait_for_content_migration(course_id: str, migration_id: int) -> Dict[str, Any]:
+    """
+    Espera a que se importen los recursos del curso base.
+    """
     deadline = time.monotonic() + MIGRATION_TIMEOUT_SEC
     while time.monotonic() < deadline:
         status = _canvas_request(
