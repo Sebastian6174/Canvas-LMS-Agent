@@ -1,5 +1,5 @@
 from src.state import CourseState
-from src.tools.canvas_api import create_module, list_modules
+from src.tools.canvas_api import create_module, list_modules, publish_module
 from src.routing import INTRO_MODULE_NAME, CREDITS_MODULE_NAME
 from config import config
 
@@ -12,7 +12,10 @@ def _get_or_create_module(
     name_lower = name.strip().lower()
     if name_lower in existing_mods_by_name:
         m_id = existing_mods_by_name[name_lower]
-        print(f"El módulo '{name}' ya existe. ID: {m_id}")
+        print(f"El modulo '{name}' ya existe. ID: {m_id}")
+        publish_result = publish_module.invoke({"module_id": m_id, "course_id": course_id})
+        if "error" in publish_result:
+            print(f"No se pudo publicar el modulo existente '{name}': {publish_result['error']}")
         return m_id
 
     print(f"Creando módulo: {name}")

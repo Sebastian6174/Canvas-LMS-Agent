@@ -132,11 +132,13 @@ def wrap_activity_description_html(
     description: str,
     related_learning_outcome: str,
     weight: float,
+    evaluation_type: str | None = None,
+    points_possible: float = 5.0,
 ) -> str:
     """Arma la descripción del assignment usando la guía del tipo (plantilla simple)."""
     activity_type = normalize_activity_type(activity_type)
     guide = ACTIVITY_TYPE_HTML_GUIDE.get(activity_type, ACTIVITY_TYPE_HTML_GUIDE[ACTIVITY_TYPE_DEFAULT])
-    eval_label = infer_evaluation_type(weight)
+    eval_label = infer_evaluation_type(weight, evaluation_type)
     return (
         f"<p><em>Plantilla ({activity_type}):</em> {guide}</p>"
         f"<hr />"
@@ -144,5 +146,6 @@ def wrap_activity_description_html(
         f"<br /><br />"
         f"<strong>Resultado de aprendizaje:</strong> {related_learning_outcome}<br />"
         f"<strong>Naturaleza:</strong> {eval_label}<br />"
-        f"<strong>Puntos:</strong> {weight}"
+        f"<strong>Puntaje maximo:</strong> {points_possible}<br />"
+        f"<strong>Ponderacion:</strong> {weight}%"
     )

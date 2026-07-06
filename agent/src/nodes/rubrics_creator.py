@@ -5,6 +5,8 @@ from config import config
 from src.state import CourseState, Rubric
 from src.tools.canvas_api import create_or_update_assignment_rubric, list_assignments
 
+EVALUATIVE_RUBRIC_POINTS = 5.0
+
 
 def _normalize_rubric_name(val: str) -> str:
     if not val:
@@ -49,10 +51,35 @@ def _find_assignment_id(
     return None
 
 
-def _canvas_criteria_from_rubric(rubric: Rubric) -> list[dict]:
+def _is_evaluative(activity) -> bool:
+    evaluation_type = (getattr(activity, "evaluation_type", "") or "").strip().lower()
+    if evaluation_type == "formativa":
+        return False
+    return evaluation_type == "evaluativa" or float(getattr(activity, "weight", 0) or 0) > 0
+
+
+def _criterion_points_for_rubric(rubric: Rubric, total_points: float) -> list[float]:
+    if not rubric.criteria:
+        return []
+
+    explicit_points = [float(criterion.points or 0) for criterion in rubric.criteria]
+    explicit_total = sum(explicit_points)
+    if explicit_total > 0:
+        scaled = [round((points / explicit_total) * total_points, 2) for points in explicit_points]
+    else:
+        per_criterion = round(total_points / len(rubric.criteria), 2)
+        scaled = [per_criterion for _ in rubric.criteria]
+
+    delta = round(total_points - sum(scaled), 2)
+    if scaled and delta:
+        scaled[-1] = round(scaled[-1] + delta, 2)
+    return scaled
+
+
+def _canvas_criteria_from_rubric(rubric: Rubric, total_points: float = EVALUATIVE_RUBRIC_POINTS) -> list[dict]:
     criteria = []
-    for index, criterion in enumerate(rubric.criteria, start=1):
-        max_points = float(criterion.points or 4)
+    points_by_criterion = _criterion_points_for_rubric(rubric, total_points)
+    for criterion, max_points in zip(rubric.criteria, points_by_criterion):
         criteria.append(
             {
                 "description": criterion.name,
@@ -111,6 +138,10 @@ def rubrics_creator_node(state: CourseState) -> CourseState:
         activity = _find_activity_for_rubric(structure, rubric)
         if not activity:
             print(f"No se encontro actividad asociada para la rubrica '{rubric.name}'. Omitiendo.")
+            continue
+
+        if not _is_evaluative(activity):
+            print(f"La actividad '{activity.name}' es formativa. Omitiendo rubrica calificada.")
             continue
 
         assignment_id = _find_assignment_id(activity.name, canvas_assignment_ids, canvas_assignments)

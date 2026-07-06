@@ -11,6 +11,8 @@ from src.utils.helpers import (
 )
 from config import config
 
+ACTIVITIES_HEADER_TITLE = "Actividades"
+
 
 def unit_pages_creator_node(state: CourseState) -> CourseState:
     """
@@ -78,5 +80,13 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
                 "page_url": page_url,
                 "course_id": course_id,
             })
+
+        print(f"Agregando encabezado '{ACTIVITIES_HEADER_TITLE}' a la unidad {unit.name}")
+        add_item_to_module.invoke({
+            "module_id": mod_id,
+            "title": ACTIVITIES_HEADER_TITLE,
+            "type": "SubHeader",
+            "course_id": course_id,
+        })
 
     return state

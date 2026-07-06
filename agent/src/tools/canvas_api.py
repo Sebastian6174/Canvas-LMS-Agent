@@ -147,7 +147,7 @@ def create_module(name: str, course_id: Optional[str] = None) -> Dict:
     """
     Crea un nuevo módulo en el curso de Canvas.
     """
-    payload = {"module": {"name": name}}
+    payload = {"module": {"name": name, "published": True}}
     return _canvas_request("POST", "/modules", payload, custom_course_id=course_id)
 
 @tool
@@ -158,7 +158,24 @@ def list_modules(course_id: Optional[str] = None) -> List[Dict]:
     return _canvas_request("GET", "/modules", custom_course_id=course_id)
 
 @tool
-def create_assignment(name: str, description: str, course_id: Optional[str] = None, points_possible: float = 0.0, submission_types: List[str] = ["online_upload"]) -> Dict:
+def publish_module(module_id: int, course_id: Optional[str] = None) -> Dict:
+    """
+    Publica un modulo existente en Canvas.
+    """
+    payload = {"module": {"published": True}}
+    return _canvas_request("PUT", f"/modules/{module_id}", payload, custom_course_id=course_id)
+
+@tool
+def create_assignment(
+    name: str,
+    description: str,
+    course_id: Optional[str] = None,
+    points_possible: float = 0.0,
+    submission_types: List[str] = ["online_upload"],
+    assignment_group_id: Optional[int] = None,
+    grading_type: str = "points",
+    omit_from_final_grade: bool = False,
+) -> Dict:
     """
     Crea o actualiza una actividad (assignment) en el curso de Canvas.
     Si ya existe una actividad con el mismo nombre, la actualiza para evitar duplicados.
@@ -175,9 +192,13 @@ def create_assignment(name: str, description: str, course_id: Optional[str] = No
                         "description": description,
                         "points_possible": points_possible,
                         "submission_types": submission_types,
+                        "grading_type": grading_type,
+                        "omit_from_final_grade": omit_from_final_grade,
                         "published": True
                     }
                 }
+                if assignment_group_id is not None:
+                    payload["assignment"]["assignment_group_id"] = assignment_group_id
                 return _canvas_request("PUT", f"/assignments/{assignment_id}", payload, custom_course_id=course_id)
                 
     payload = {
@@ -186,9 +207,13 @@ def create_assignment(name: str, description: str, course_id: Optional[str] = No
             "description": description,
             "points_possible": points_possible,
             "submission_types": submission_types,
+            "grading_type": grading_type,
+            "omit_from_final_grade": omit_from_final_grade,
             "published": True
         }
     }
+    if assignment_group_id is not None:
+        payload["assignment"]["assignment_group_id"] = assignment_group_id
     return _canvas_request("POST", "/assignments", payload, custom_course_id=course_id)
 
 @tool
@@ -197,6 +222,51 @@ def list_assignments(course_id: Optional[str] = None) -> List[Dict]:
     Lista las actividades (assignments) existentes en el curso.
     """
     return _canvas_request("GET", "/assignments?per_page=100", custom_course_id=course_id)
+
+
+@tool
+def list_assignment_groups(course_id: Optional[str] = None) -> List[Dict]:
+    """
+    Lista los grupos de actividades del curso.
+    """
+    return _canvas_request("GET", "/assignment_groups?per_page=100", custom_course_id=course_id)
+
+
+@tool
+def enable_assignment_group_weights(course_id: Optional[str] = None) -> Dict:
+    """
+    Activa la ponderacion por grupos de actividades en el curso.
+    """
+    target_course_id = course_id or config.course_id
+    payload = {"course": {"apply_assignment_group_weights": True}}
+    return _canvas_request("PUT", f"/courses/{target_course_id}", payload, custom_course_id=target_course_id)
+
+
+@tool
+def create_or_update_assignment_group(
+    name: str,
+    group_weight: float,
+    course_id: Optional[str] = None,
+) -> Dict:
+    """
+    Crea o actualiza un grupo de actividades de Canvas.
+    """
+    groups = list_assignment_groups.invoke({"course_id": course_id})
+    payload = {"name": name, "group_weight": group_weight}
+
+    if isinstance(groups, list):
+        for group in groups:
+            if group.get("name", "").strip().lower() == name.strip().lower():
+                group_id = group.get("id")
+                print(f"El grupo de actividades '{name}' ya existe (ID: {group_id}). Actualizandolo...")
+                return _canvas_request(
+                    "PUT",
+                    f"/assignment_groups/{group_id}",
+                    payload,
+                    custom_course_id=course_id,
+                )
+
+    return _canvas_request("POST", "/assignment_groups", payload, custom_course_id=course_id)
 
 
 @tool
@@ -304,6 +374,8 @@ def add_item_to_module(module_id: int, title: str, type: str, content_id: Option
     }
     if type == "Page" and page_url:
         payload["module_item"]["page_url"] = page_url
+    elif type == "SubHeader":
+        pass
     elif content_id is not None:
         payload["module_item"]["content_id"] = content_id
         
