@@ -26,10 +26,13 @@ def has_errors(state: CourseState) -> bool:
 
 
 def route_after_analyst(state: CourseState) -> str:
+    if has_errors(state):
+        return END
+    if state.get("activities_to_enrich"):
+        return "enrich_activities"
     if (
         state.get("is_valid")
         and state.get("course_structure")
-        and not has_errors(state)
     ):
         return "setup_course"
     return END

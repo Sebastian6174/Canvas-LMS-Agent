@@ -8,7 +8,7 @@ from src.tools.canvas_api import (
     list_assignments,
 )
 from src.activity_types import wrap_activity_description_html
-from src.utils.helpers import activities_for_unit
+from src.utils.helpers import activities_for_unit, resolve_html_links
 from config import config
 
 ASSIGNMENT_POINTS = 5.0
@@ -136,6 +136,7 @@ def activity_creator_node(state: CourseState) -> CourseState:
     structure = state.get("course_structure")
     course_id = state.get("canvas_course_id") or config.course_id
     module_mapping = state.get("module_mapping", {})
+    files_map = state.get("course_files_map") or {}
 
     if not structure or not course_id:
         return {**state, "errors": ["Faltan datos para crear las actividades"]}
@@ -154,14 +155,32 @@ def activity_creator_node(state: CourseState) -> CourseState:
         print(f"Creando actividad: {act.name}")
         assignment_group_id = _assignment_group_id_for_activity(act, assignment_group_ids)
         points_possible = _points_for_activity(act)
+
+        # Resolve week from schedule
+        week = 1
+        if structure.schedule:
+            for item in structure.schedule:
+                if _normalize_assignment_name(item.activity_name) == _normalize_assignment_name(act.name):
+                    week = item.week
+                    break
+
         description_html = wrap_activity_description_html(
-            act.activity_type,
-            act.description,
-            act.related_learning_outcome,
-            act.weight,
-            act.evaluation_type,
-            points_possible,
+            activity_type=act.activity_type,
+            description=act.description,
+            related_learning_outcome=act.related_learning_outcome,
+            weight=act.weight,
+            evaluation_type=act.evaluation_type,
+            points_possible=points_possible,
+            delivery_form=getattr(act, "delivery_form", ""),
+            resources=act.resources,
+            duration=act.duration,
+            week=week,
+            files_map=files_map,
+            domain=config.domain,
+            course_id=course_id,
         )
+        description_html = resolve_html_links(description_html, files_map, config.domain, course_id)
+
         assignment_payload = {
             "name": act.name,
             "description": description_html,

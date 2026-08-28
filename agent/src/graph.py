@@ -7,7 +7,14 @@ from src.routing import (
     route_after_setup,
     route_after_modules,
 )
-from src.nodes.analyst import analyst_node
+from src.nodes.analyst import (
+    analyst_node,
+    extract_modules_node,
+    extract_activities_list_node,
+    extract_schedule_node,
+    extract_rubrics_list_node,
+    enrich_activities_node,
+)
 from src.nodes.setup_course import setup_course_node
 from src.nodes.page_creator import page_creator_node
 from src.nodes.agenda_creator import agenda_creator_node
@@ -26,6 +33,12 @@ def create_graph():
     workflow = StateGraph(CourseState)
 
     workflow.add_node("analyst", analyst_node)
+    workflow.add_node("extract_modules", extract_modules_node)
+    workflow.add_node("extract_activities_list", extract_activities_list_node)
+    workflow.add_node("extract_schedule", extract_schedule_node)
+    workflow.add_node("extract_rubrics_list", extract_rubrics_list_node)
+    workflow.add_node("enrich_activities", enrich_activities_node)
+
     workflow.add_node("setup_course", setup_course_node)
     workflow.add_node("module_generator", module_generator_node)
     workflow.add_node("page_creator", page_creator_node)
@@ -39,8 +52,17 @@ def create_graph():
     workflow.add_node("rubrics_creator", rubrics_creator_node)
     workflow.add_node("syllabus_creator", syllabus_creator_node)
 
+    # Linear extraction sequence
     workflow.add_edge(START, "analyst")
-    workflow.add_conditional_edges("analyst", route_after_analyst)
+    workflow.add_edge("analyst", "extract_modules")
+    workflow.add_edge("extract_modules", "extract_activities_list")
+    workflow.add_edge("extract_activities_list", "extract_schedule")
+    workflow.add_edge("extract_schedule", "extract_rubrics_list")
+    
+    # Conditional loops and routing
+    workflow.add_conditional_edges("extract_rubrics_list", route_after_analyst)
+    workflow.add_conditional_edges("enrich_activities", route_after_analyst)
+    
     workflow.add_conditional_edges("setup_course", route_after_setup)
     workflow.add_conditional_edges("module_generator", route_after_modules)
 

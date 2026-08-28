@@ -12,8 +12,7 @@ class Activity(BaseModel):
     activity_type: str = Field(
         default="Otros",
         description=(
-            "Tipo de actividad: Videoconferencia, Taller, Foro, Tarea, Infografía, Ensayo, "
-            "Quiz, Evaluación, Cuadro comparativo, Mapa mental, Entrega u Otros"
+            "Tipo de actividad: Foro, Quiz, Tarea, Videoconferencia u Otros"
         ),
     )
     evaluation_type: str = Field(
@@ -27,6 +26,10 @@ class Activity(BaseModel):
     rubric: Optional[str] = None
     related_learning_outcome: str
     weight: float
+    delivery_form: str = Field(
+        default="",
+        description="Forma de entrega de la actividad (ej: Participación en el encuentro virtual, Enviar documento, etc.)"
+    )
     module_name: str = Field(
         default="",
         description="Nombre exacto de la unidad a la que pertenece (debe coincidir con modules[].name)",
@@ -67,10 +70,25 @@ class Module(BaseModel):
 class RubricCriterion(BaseModel):
     name: str = Field(description="Nombre o descripción del criterio (ej: 'Criterio 1: Comprensión del concepto')")
     points: Optional[float] = Field(default=None, description="Puntos posibles para este criterio (opcional)")
-    excelente: str = Field(description="Descripción del nivel Excelente")
-    en_desarrollo: str = Field(description="Descripción del nivel En desarrollo")
-    basico: str = Field(description="Descripción del nivel Básico")
-    insuficiente: str = Field(description="Descripción del nivel Insuficiente")
+    excelente: str = Field(default="", description="Descripción del nivel Excelente")
+    en_desarrollo: str = Field(default="", description="Descripción del nivel En desarrollo")
+    basico: str = Field(default="", description="Descripción del nivel Básico")
+    insuficiente: str = Field(default="", description="Descripción del nivel Insuficiente")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_points(cls, data):
+        if not isinstance(data, dict):
+            return data
+        points = data.get("points")
+        if points is not None:
+            if isinstance(points, str):
+                cleaned = points.replace("%", "").replace("pts", "").replace("puntos", "").strip()
+                try:
+                    data["points"] = float(cleaned)
+                except ValueError:
+                    data["points"] = None
+        return data
 
 class Rubric(BaseModel):
     name: str = Field(description="Nombre/Número unificado de la rúbrica (ej: 'Rúbrica N. 1', 'Rúbrica 2')")
@@ -107,3 +125,6 @@ class CourseState(TypedDict):
     downloadable_program: str
     course_files_map: Optional[Dict[str, str]]
     canvas_assignment_ids: Optional[Dict[str, int]]
+    remaining_tabs: Optional[List[Dict[str, str]]]
+    activities_to_enrich: Optional[List[str]]
+    rubrics_to_enrich: Optional[List[str]]

@@ -13,11 +13,77 @@ class MockStructuredLLM:
 
 
 class MockLLM:
-    def __init__(self, return_value):
-        self.return_value = return_value
+    def __init__(self, course_structure):
+        self.course_structure = course_structure
 
     def with_structured_output(self, schema):
-        return MockStructuredLLM(self.return_value)
+        from src.nodes.analyst import (
+            CourseMetadata,
+            ModulesList,
+            ModuleExtraction,
+            ActivitiesSkeletonList,
+            ActivitySkeleton,
+            ScheduleExtractionList,
+            RubricsList,
+            RubricAssociation,
+            ActivityEnrichmentBatch,
+            ActivityDetails,
+        )
+        if schema == CourseMetadata:
+            return MockStructuredLLM(
+                CourseMetadata(
+                    name=self.course_structure.name,
+                    academic_program=self.course_structure.academic_program,
+                    semester=self.course_structure.semester,
+                    academic_level=self.course_structure.academic_level,
+                    credits=self.course_structure.credits,
+                    prerequisites=self.course_structure.prerequisites,
+                    teacher=self.course_structure.teacher,
+                    description=self.course_structure.description,
+                    learning_outcomes=self.course_structure.learning_outcomes,
+                )
+            )
+        elif schema == ModulesList:
+            mods = [
+                ModuleExtraction(name=m.name, description=m.description)
+                for m in self.course_structure.modules
+            ]
+            return MockStructuredLLM(ModulesList(modules=mods))
+        elif schema == ActivitiesSkeletonList:
+            acts = [
+                ActivitySkeleton(
+                    name=a.name,
+                    activity_type=a.activity_type,
+                    evaluation_type=a.evaluation_type,
+                    weight=a.weight,
+                    module_name=a.module_name,
+                )
+                for a in self.course_structure.activities
+            ]
+            return MockStructuredLLM(ActivitiesSkeletonList(activities=acts))
+        elif schema == ScheduleExtractionList:
+            return MockStructuredLLM(ScheduleExtractionList(schedule=self.course_structure.schedule))
+        elif schema == RubricsList:
+            assocs = []
+            for r in self.course_structure.rubrics:
+                for act in self.course_structure.activities:
+                    if act.rubric == r.name:
+                        assocs.append(RubricAssociation(rubric_name=r.name, activity_name=act.name))
+            return MockStructuredLLM(RubricsList(rubrics=self.course_structure.rubrics, associations=assocs))
+        elif schema == ActivityEnrichmentBatch:
+            batch_activities = []
+            for act in self.course_structure.activities:
+                batch_activities.append(
+                    ActivityDetails(
+                        name=act.name,
+                        description=act.description,
+                        duration=act.duration,
+                        delivery_form=getattr(act, "delivery_form", ""),
+                        resources=act.resources,
+                    )
+                )
+            return MockStructuredLLM(ActivityEnrichmentBatch(activities=batch_activities))
+        return MockStructuredLLM(self.course_structure)
 
 
 def test_rubrics_workflow(monkeypatch):
@@ -77,18 +143,41 @@ def test_rubrics_workflow(monkeypatch):
 
     monkeypatch.setattr(config, "get_llm", lambda: MockLLM(mock_structure))
 
-    analyst_result = analyst_node(
-        {
-            "doc_id": "mock_doc_id",
-            "course_structure": None,
-            "canvas_course_id": None,
-            "module_mapping": None,
-            "teacher_info": None,
-            "is_valid": False,
-            "errors": [],
-        }
+    from src.nodes.analyst import (
+        analyst_node,
+        extract_modules_node,
+        extract_activities_list_node,
+        extract_schedule_node,
+        extract_rubrics_list_node,
+        enrich_activities_node,
     )
 
+    state = {
+        "doc_id": "mock_doc_id",
+        "course_structure": None,
+        "canvas_course_id": None,
+        "module_mapping": None,
+        "teacher_info": None,
+        "is_valid": False,
+        "errors": [],
+        "remaining_tabs": None,
+        "activities_to_enrich": None,
+        "rubrics_to_enrich": None,
+    }
+
+    state = analyst_node(state)
+    state = extract_modules_node(state)
+    state = extract_activities_list_node(state)
+    state = extract_schedule_node(state)
+    state = extract_rubrics_list_node(state)
+
+    for _ in range(10):
+        if state.get("errors") or state.get("is_valid"):
+            break
+        if state.get("activities_to_enrich"):
+            state = enrich_activities_node(state)
+
+    analyst_result = state
     assert analyst_result["is_valid"] is True
     assert analyst_result["errors"] == []
 
@@ -114,13 +203,13 @@ def test_rubrics_workflow(monkeypatch):
         {
             **analyst_result,
             "canvas_course_id": "canvas_123",
-            "canvas_assignment_ids": {"Actividad 3": 333},
+            "canvas_assignment_ids": {"Actividad 1. Otros: Actividad 3": 333},
         }
     )
 
     assert creator_result["errors"] == []
     assert len(created_rubrics) == 1
-    assert created_rubrics[0]["title"] == "Actividad 3"
+    assert created_rubrics[0]["title"] == "Actividad 1. Otros: Actividad 3"
     assert created_rubrics[0]["assignment_id"] == 333
     assert created_rubrics[0]["course_id"] == "canvas_123"
     assert created_rubrics[0]["use_for_grading"] is True
