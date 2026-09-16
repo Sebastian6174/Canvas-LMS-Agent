@@ -23,6 +23,9 @@ def initial_state(doc_id: str) -> dict:
         "downloadable_program": "",
         "course_files_map": None,
         "canvas_assignment_ids": None,
+        "analysis_chunks": None,
+        "analysis_chunk_index": 0,
+        "analysis_partial_structure": None,
     }
 
 
@@ -56,6 +59,9 @@ def run_agent(overrides: dict[str, Any] | None = None) -> tuple[dict, int]:
 
         print(f"Iniciando pipeline para documento: {doc_id}")
 
-        final_state = app.invoke(initial_state(doc_id))
+        final_state = app.invoke(
+            initial_state(doc_id),
+            config={"recursion_limit": max(50, config.analysis_chunk_size // 500)},
+        )
         exit_code = print_pipeline_report(final_state)
         return final_state, exit_code

@@ -75,6 +75,40 @@ class RubricCriterion(BaseModel):
 class Rubric(BaseModel):
     name: str = Field(description="Nombre/Número unificado de la rúbrica (ej: 'Rúbrica N. 1', 'Rúbrica 2')")
     criteria: List[RubricCriterion] = Field(description="Lista de criterios de evaluación para esta rúbrica")
+    
+class PartialActivity(BaseModel):
+    name: str = ""
+    description: str = ""
+    duration: int = 0
+    activity_type: str = "Otros"
+    evaluation_type: str = ""
+    number: int = 0
+    rubric: Optional[str] = None
+    related_learning_outcome: str = ""
+    weight: float = 0
+    module_name: str = ""
+    resources: List[str] = Field(default_factory=list)
+
+class PartialModule(BaseModel):
+    name: str = ""
+    description: str = ""
+    activities: List[str] = Field(default_factory=list)
+
+class PartialCourseStructure(BaseModel):
+    """Fragmento tolerante para acumular hallazgos de una parte del documento."""
+    name: str = ""
+    academic_program: str = ""
+    semester: int = 0
+    academic_level: str = ""
+    credits: int = 0
+    prerequisites: List[str] = Field(default_factory=list)
+    teacher: str = ""
+    description: str = ""
+    learning_outcomes: List[str] = Field(default_factory=list)
+    modules: List[PartialModule] = Field(default_factory=list)
+    activities: List[PartialActivity] = Field(default_factory=list)
+    schedule: List[ScheduleItem] = Field(default_factory=list)
+    rubrics: List[Rubric] = Field(default_factory=list)
 
 class CourseStructure(BaseModel):
     name: str
@@ -107,3 +141,6 @@ class CourseState(TypedDict):
     downloadable_program: str
     course_files_map: Optional[Dict[str, str]]
     canvas_assignment_ids: Optional[Dict[str, int]]
+    analysis_chunks: Optional[List[str]]
+    analysis_chunk_index: int
+    analysis_partial_structure: Optional[Dict]

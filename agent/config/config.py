@@ -32,20 +32,71 @@ class Config:
     # LLM
     openrouter_api_key = _env("OPENROUTER_API_KEY")
     openrouter_model = _env("OPENROUTER_MODEL", "inclusionai/ring-2.6-1t")
+    # Reducir el valor por defecto para evitar errores por límite de créditos/tokens
+    llm_max_tokens = int(_env("LLM_MAX_TOKENS", default="4000"))
+    analysis_chunk_size = int(_env("ANALYSIS_CHUNK_SIZE", default="12000"))
     
     # Método para crear una instancia del modelo de lenguaje
     @classmethod
     def get_llm(cls):
         if not cls.openrouter_api_key or "your_openrouter_api_key" in cls.openrouter_api_key:
             raise ValueError("OPENROUTER_API_KEY no está configurada correctamente en el archivo .env")
-            
-        return ChatOpenAI(
+        class LLMWrapper:
+            def __init__(self, api_key, model, max_tokens, temperature, headers):
+                self.api_key = api_key
+                self.model = model
+                self.max_tokens = max_tokens
+                self.temperature = temperature
+                self.headers = headers
+
+            def invoke(self, messages):
+                # Intentar con el límite de tokens configurado; si falla por 402, reintentar con menos tokens
+                try:
+                    return self._client().invoke(messages)
+                except Exception as e:
+                    msg = str(e)
+                    if "402" in msg or "requires more credits" in msg or "max_tokens" in msg:
+                        # Reducir tokens a la mitad (pero no por debajo de 512) y reintentar una vez
+                        reduced = max(512, int(self.max_tokens // 2))
+                        try:
+                            return self._client(reduced).invoke(messages)
+                        except Exception:
+                            raise
+                    raise
+
+            def with_structured_output(self, schema):
+                structured = self._client().with_structured_output(schema)
+                fallback = self._client(max(512, self.max_tokens // 2)).with_structured_output(schema)
+
+                class StructuredWrapper:
+                    def invoke(self, messages):
+                        try:
+                            return structured.invoke(messages)
+                        except Exception as e:
+                            message = str(e)
+                            if "402" in message or "requires more credits" in message or "max_tokens" in message:
+                                return fallback.invoke(messages)
+                            raise
+
+                return StructuredWrapper()
+
+            def _client(self, max_tokens=None):
+                return ChatOpenAI(
+                    api_key=cls.openrouter_api_key,
+                    base_url="https://openrouter.ai/api/v1",
+                    model=cls.openrouter_model,
+                    max_tokens=max_tokens or self.max_tokens,
+                    temperature=self.temperature,
+                    default_headers=self.headers,
+                )
+
+        return LLMWrapper(
             api_key=cls.openrouter_api_key,
-            base_url="https://openrouter.ai/api/v1",
             model=cls.openrouter_model,
-            max_tokens=8192,
-            default_headers={
+            max_tokens=cls.llm_max_tokens,
+            temperature=0,
+            headers={
                 "HTTP-Referer": "https://github.com/sebas/canvas-lms-agent",
                 "X-Title": "Canvas LMS Agent",
-            }
+            },
         )

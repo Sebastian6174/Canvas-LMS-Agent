@@ -1,4 +1,12 @@
-from src.state import CourseState, CourseStructure, Activity, ScheduleItem
+from src.state import (
+    CourseState,
+    CourseStructure,
+    PartialCourseStructure,
+    PartialActivity,
+    PartialModule,
+    Activity,
+    ScheduleItem,
+)
 from src.tools.doc_parser import read_google_doc
 from src.activity_types import (
     activity_types_prompt_section,
@@ -101,96 +109,111 @@ def _enrich_activity_titles_and_types(structure: CourseStructure) -> CourseStruc
     )
 
 
+def _document_text(doc_content: list[dict]) -> str:
+    import re
+    text = "\n\n".join(f"Tab: {tab['title']}\n{tab['content']}" for tab in doc_content)
+    return re.sub(r"[\x00-\x1F\x7F]", " ", text)
+
+
+def _merge_partial(existing: dict, incoming: PartialCourseStructure) -> dict:
+    merged = dict(existing)
+    for field in ("name", "academic_program", "semester", "academic_level", "credits", "teacher", "description"):
+        value = getattr(incoming, field)
+        if value not in ("", 0, None):
+            merged[field] = value
+
+    def merge_named(items, key="name"):
+        result = {item.get(key, "").strip().lower(): item for item in merged.get(field_name, []) if item.get(key)}
+        for item in items:
+            item_dict = item.model_dump() if hasattr(item, "model_dump") else item
+            item_key = item_dict.get(key, "").strip().lower()
+            if not item_key:
+                continue
+            if item_key in result:
+                result[item_key] = {**result[item_key], **{k: v for k, v in item_dict.items() if v not in ("", 0, [], None)}}
+            else:
+                result[item_key] = item_dict
+        return list(result.values())
+
+    for field_name in ("modules", "activities", "rubrics"):
+        merged[field_name] = merge_named(getattr(incoming, field_name))
+
+    for field_name in ("prerequisites", "learning_outcomes", "schedule"):
+        values = [item.model_dump() if hasattr(item, "model_dump") else item for item in getattr(incoming, field_name)]
+        current = merged.get(field_name, [])
+        for value in values:
+            if value not in current:
+                current.append(value)
+        merged[field_name] = current
+    return merged
+
+
+def _finalize_structure(data: dict) -> CourseStructure:
+    return _enrich_activity_titles_and_types(
+        _enrich_activity_unit_links(CourseStructure.model_validate(data))
+    )
+
+
 def analyst_node(state: CourseState) -> CourseState:
-    """
-    Analyst node that reads a Google Doc and infers the course structure.
-    """
+    """Procesa un fragmento del documento y acumula su estructura en el estado."""
+    import re
     doc_id = state.get("doc_id")
     if not doc_id:
         return {**state, "is_valid": False, "errors": ["No doc_id provided in state"]}
 
-    # Read the document
-    print(f"Reading document {doc_id}...")
-    doc_content = read_google_doc(doc_id)
-    if not doc_content:
-        return {**state, "is_valid": False, "errors": ["Failed to read Google Doc"]}
+    chunks = state.get("analysis_chunks")
+    index = state.get("analysis_chunk_index", 0)
+    if not chunks:
+        print(f"Reading document {doc_id}...")
+        doc_content = read_google_doc(doc_id)
+        if not doc_content:
+            return {**state, "is_valid": False, "errors": ["Failed to read Google Doc"]}
+        full_text = _document_text(doc_content)
+        chunk_size = int(getattr(config, "analysis_chunk_size", 12000))
+        chunks = [full_text[pos:pos + chunk_size] for pos in range(0, len(full_text), chunk_size)] or [""]
+        index = 0
 
-    # Prepare the text for the LLM
-    import re
-    full_text = ""
-    for tab in doc_content:
-        full_text += f"Tab: {tab['title']}\n{tab['content']}\n\n"
+    if index >= len(chunks):
+        return {**state, "is_valid": False, "errors": ["No quedan fragmentos para analizar"]}
 
-    # Preprocesamiento agresivo: Eliminar todos los caracteres de control (0x00 a 0x1F)
-    full_text = re.sub(r"[\x00-\x1F\x7F]", " ", full_text)
-
-    # Read teacher document if configured
-    teacher_info_text = None
-    if config.teacher_doc:
-        print(f"Reading teacher document {config.teacher_doc}...")
+    teacher_info = state.get("teacher_info")
+    if teacher_info is None and config.teacher_doc:
         teacher_content = read_google_doc(config.teacher_doc)
-        if teacher_content:
-            teacher_info_text = ""
-            for tab in teacher_content:
-                teacher_info_text += f"Tab: {tab['title']}\n{tab['content']}\n\n"
-            teacher_info_text = re.sub(r"[\x00-\x1F\x7F]", " ", teacher_info_text)
-
-    # Initialize LLM with structured output
-    print("Inferring course structure using LLM...")
-    llm = config.get_llm()
-    structured_llm = llm.with_structured_output(CourseStructure)
+        teacher_info = _document_text(teacher_content) if teacher_content else ""
 
     system_prompt = (
-        "Eres un experto en diseño instruccional y análisis de currículo. "
-        "Tu tarea es analizar el contenido de un documento que describe un curso y extraer su estructura. "
-        "Debes identificar al docente, descripción del curso, resultados de aprendizaje, unidades, actividades, cronograma y rúbricas. "
-        "IMPORTANTE: NO asumas ni inventes información. Extrae la información EXACTA proporcionada en el documento. "
-        "Para la descripción del curso y otros campos descriptivos, extrae el texto de forma íntegra y completa, tal como aparece en el documento original, SIN RESUMIR. "
-        "Si algún dato requerido no se encuentra en el documento, omítelo o déjalo en blanco; bajo ningún concepto debes inventarlo. "
-        "En el cronograma ('schedule'), solo usa el 'activity_name' que coincida con el nombre de una actividad definida en la lista de 'activities'. "
-        "No repitas el objeto Activity completo dentro del schedule. "
-        "En 'modules' incluye solo las unidades de contenido del programa académico. "
-        "Nunca uses el término 'eje temático': cada unidad debe nombrarse como 'Unidad N' seguido del título si aparece en el documento (ej. 'Unidad 1. El conflicto'). "
-        "Cada actividad en 'activities' debe incluir 'module_name' con el nombre exacto de su unidad (igual que modules[].name) "
-        "y 'resources' con los recursos o materiales de estudio de esa actividad tal como figuran en el documento (lista vacía si no hay). "
-        "En cada unidad de 'modules', lista en 'activities' solo los nombres cortos de las actividades de ESA unidad. "
-        "Además, debes extraer todas las rúbricas de evaluación del curso y agregarlas a la lista 'rubrics'. "
-        "Para cada rúbrica, identifica su nombre/identificador correcto (por ejemplo, 'Rúbrica N. 1', 'Rúbrica 2', etc.) "
-        "y su lista de criterios. En cada criterio debes extraer: "
-        "- 'name': el nombre/descripción del criterio "
-        "- 'points': los puntos si se indican explícitamente en el texto del criterio (como número decimal, o dejarlo en blanco si no se indica) "
-        "- 'excelente', 'en_desarrollo', 'basico', 'insuficiente': las descripciones de los niveles correspondientes. "
-        "Asocia cada actividad con su rúbrica correspondiente mediante el campo 'rubric' de la actividad. "
-        "Ten en cuenta que algunas actividades no tienen rúbrica (en cuyo caso su campo 'rubric' debe ser null o 'N/A') "
-        "y que a veces el número de la rúbrica no coincide con el número de actividad (por ejemplo, la actividad 1 no tiene rúbrica y la actividad 3 usa la 'Rúbrica N. 1'). "
-        "Infiere correctamente la correspondencia basándote en la información de las tablas de cada actividad y los encabezados de las tablas de rúbricas (ej. si una sección rotulada como 'Rúbrica No. 2' en la pestaña 'No4' corresponde a la actividad 8 que declara usar la 'Rúbrica 4', infiere que su nombre correcto es 'Rúbrica 4' o asóciala adecuadamente con la actividad 8)."
+        "Analiza SOLO el fragmento recibido de un documento curricular. Devuelve un fragmento parcial "
+        "compatible con el esquema. Extrae únicamente datos explícitos; no inventes ni completes con conocimiento externo. "
+        "Incluye actividades, módulos, resultados, cronograma y rúbricas sólo cuando aparezcan en este fragmento. "
+        "Usa nombres de actividades cortos, module_name, resources y evaluation_type. "
         f"{activity_types_prompt_section()} "
-        "REGLA CRÍTICA PARA EL JSON: Para evitar errores de formato (Invalid JSON control character), DEBES REEMPLAZAR todos los saltos de línea físicos por un simple espacio en blanco dentro de cualquier texto que extraigas. NO dejes saltos de línea literales (enters) ni uses '\\n' en los valores de texto."
-        "RECUERDA, EVITA SALTOS DE LÍNEA PERO NO POR ELLO OMITAS INFORMACIÓN"
+        "Usa textos compactos, sin saltos de línea dentro de valores. Devuelve sólo la estructura solicitada."
     )
-
-    human_prompt = f"Aquí está el contenido del documento:\n\n{full_text}"
+    human_prompt = f"Fragmento {index + 1} de {len(chunks)}:\n{chunks[index]}"
+    if teacher_info:
+        human_prompt += f"\n\nDatos del docente (contexto adicional):\n{teacher_info}"
 
     try:
-        inferred_structure = structured_llm.invoke([
+        structured_llm = config.get_llm().with_structured_output(PartialCourseStructure)
+        partial = structured_llm.invoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=human_prompt),
         ])
-        inferred_structure = _enrich_activity_unit_links(inferred_structure)
-        inferred_structure = _enrich_activity_titles_and_types(inferred_structure)
-
-        print("Course structure inferred successfully.")
-        return {
-            **state,
-            "course_structure": inferred_structure,
-            "teacher_info": teacher_info_text,
-            "is_valid": True,
-            "errors": [],
-        }
+        if isinstance(partial, CourseStructure):
+            merged = partial.model_dump()
+            next_index = len(chunks)
+        else:
+            if not isinstance(partial, PartialCourseStructure):
+                partial = PartialCourseStructure.model_validate(partial.model_dump() if hasattr(partial, "model_dump") else partial)
+            merged = _merge_partial(state.get("analysis_partial_structure") or {}, partial)
+            next_index = index + 1
+        result = {**state, "analysis_chunks": chunks, "analysis_chunk_index": next_index,
+                  "analysis_partial_structure": merged, "teacher_info": teacher_info, "errors": []}
+        if next_index < len(chunks):
+            return {**result, "is_valid": False, "course_structure": None}
+        structure = _finalize_structure(merged)
+        print("Course structure inferred successfully from all document fragments.")
+        return {**result, "course_structure": structure, "is_valid": True}
     except Exception as e:
         print(f"Error during LLM inference: {str(e)}")
-        return {
-            **state,
-            "is_valid": False,
-            "errors": [f"Error during LLM inference: {str(e)}"],
-        }
+        return {**state, "is_valid": False, "errors": [f"Error during LLM inference: {str(e)}"]}
