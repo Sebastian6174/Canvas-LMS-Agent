@@ -11,7 +11,7 @@ from src.state import Activity, CourseStructure, Module
 
 def test_normalize_activity_type_defaults_to_otros():
     assert normalize_activity_type("desconocido") == ACTIVITY_TYPE_DEFAULT
-    assert normalize_activity_type("taller") == "Taller"
+    assert normalize_activity_type("taller") == ACTIVITY_TYPE_DEFAULT
     assert normalize_activity_type(None) == ACTIVITY_TYPE_DEFAULT
 
 
@@ -63,6 +63,11 @@ def test_enrich_activity_titles_and_types_updates_modules_and_schedule():
 
 
 def test_wrap_activity_description_includes_type_guide():
-    html = wrap_activity_description_html("Quiz", "Contenido", "RA1", 5)
-    assert "Plantilla (Quiz)" in html
+    html = wrap_activity_description_html(
+        activity_type="Quiz",
+        description="Contenido",
+        related_learning_outcome="RA1",
+        weight=5,
+    )
+    assert "Tipo de actividad" in html
     assert "Contenido" in html

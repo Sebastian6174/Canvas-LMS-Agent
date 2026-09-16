@@ -388,6 +388,7 @@ def update_course_home_page(body: str, course_id: Optional[str] = None) -> Dict:
     """
     payload = {
         "wiki_page": {
+            "title": "Página de inicio",
             "body": body,
             "published": True
         }

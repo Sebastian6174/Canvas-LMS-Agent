@@ -4,6 +4,9 @@ from typing import Dict, Any, List, Optional, Sequence
 
 # Mapping from old template file IDs to their normalized filenames
 TEMPLATE_FILE_ID_TO_FILENAME = {
+    # Course 630 files
+    "54959": "Bannercurso.png",
+    
     # Course 863 files (home page template)
     "67711": "Bannercurso.png",
     "67126": "Iconos_ResultadosAp.png",
