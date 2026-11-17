@@ -20,7 +20,6 @@ def initial_state(doc_id: str) -> dict:
         "syllabus_page_url": None,
         "is_valid": False,
         "errors": [],
-        "downloadable_program": "",
         "course_files_map": None,
         "canvas_assignment_ids": None,
         "analysis_chunks": None,

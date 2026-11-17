@@ -1,4 +1,4 @@
-from config import config
+from src.nodes.base import fail, proceed, resolve_course_id
 from src.state import CourseState
 from src.tools.canvas_api import update_course_syllabus
 
@@ -15,13 +15,13 @@ def syllabus_creator_node(state: CourseState) -> CourseState:
     Actualiza el Syllabus de Canvas con una introduccion breve y las actividades actuales.
     """
     if state.get("errors"):
-        return state
+        return proceed(state)
 
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
+    course_id = resolve_course_id(state)
 
     if not structure or not course_id:
-        return {**state, "errors": ["Faltan datos para crear el programa del curso"]}
+        return fail(state, "Faltan datos para crear el programa del curso")
 
     print(f"Creando Syllabus / Programa del curso para el curso {course_id}...")
 
@@ -36,7 +36,7 @@ def syllabus_creator_node(state: CourseState) -> CourseState:
 
     if "error" in result:
         print(f"Error al crear el programa del curso: {result['error']}")
-        return {**state, "errors": ["Error creando programa del curso"]}
+        return fail(state, "Error creando programa del curso")
 
     print("Syllabus / Programa del curso actualizado exitosamente.")
-    return {**state, "syllabus_page_url": f"/courses/{course_id}/assignments/syllabus"}
+    return proceed(state, syllabus_page_url=f"/courses/{course_id}/assignments/syllabus")

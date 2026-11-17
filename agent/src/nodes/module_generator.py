@@ -1,7 +1,7 @@
 from src.state import CourseState
 from src.tools.canvas_api import create_module, list_modules, publish_module
-from src.routing import INTRO_MODULE_NAME, CREDITS_MODULE_NAME
-from config import config
+from src.constants import INTRO_MODULE_NAME, CREDITS_MODULE_NAME
+from src.nodes.base import fail, proceed, resolve_course_id
 
 
 def _get_or_create_module(
@@ -35,13 +35,13 @@ def module_generator_node(state: CourseState) -> CourseState:
     No requiere LLM; itera sobre la estructura del curso en el estado.
     """
     if state.get("errors"):
-        return {**state, "errors": ["Pipeline detenido: errores en etapas previas"]}
+        return fail(state, "Pipeline detenido: errores en etapas previas")
 
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
+    course_id = resolve_course_id(state)
 
     if not structure or not course_id:
-        return {**state, "errors": ["Faltan datos para crear los módulos"]}
+        return fail(state, "Faltan datos para crear los módulos")
 
     print(f"Creando unidades (módulos Canvas) para el curso {course_id}...")
 
@@ -53,17 +53,10 @@ def module_generator_node(state: CourseState) -> CourseState:
 
     module_mapping: dict[str, int] = {}
 
-    intro_id = _get_or_create_module(INTRO_MODULE_NAME, course_id, existing_mods_by_name)
-    if intro_id:
-        module_mapping[INTRO_MODULE_NAME] = intro_id
-
-    credits_id = _get_or_create_module(CREDITS_MODULE_NAME, course_id, existing_mods_by_name)
-    if credits_id:
-        module_mapping[CREDITS_MODULE_NAME] = credits_id
-
-    for mod in structure.modules:
-        m_id = _get_or_create_module(mod.name, course_id, existing_mods_by_name)
+    module_names = [INTRO_MODULE_NAME, CREDITS_MODULE_NAME, *(mod.name for mod in structure.modules)]
+    for name in module_names:
+        m_id = _get_or_create_module(name, course_id, existing_mods_by_name)
         if m_id:
-            module_mapping[mod.name] = m_id
+            module_mapping[name] = m_id
 
-    return {**state, "module_mapping": module_mapping}
+    return proceed(state, module_mapping=module_mapping)

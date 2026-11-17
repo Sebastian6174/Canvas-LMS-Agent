@@ -1,23 +1,10 @@
 from src.state import CourseState
+from src.constants import ALIGNMENT_PAGE_TITLE
 from src.tools.canvas_api import create_page
-from config import config
-from langchain_core.messages import SystemMessage, HumanMessage
+from src.nodes.base import resolve_course_id
+from src.utils.llm_html import generate_course_html
 
-def alignment_creator_node(state: CourseState) -> CourseState:
-    """
-    Nodo encargado de crear y configurar la página de Alineación de Actividades del curso.
-    """
-    structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
-    
-    if not structure or not course_id:
-        return {"errors": ["Faltan datos para crear la página de alineación"]}
-
-    print(f"Generando página de alineación para el curso {course_id}...")
-    
-    llm = config.get_llm()
-    
-    system_prompt = """Eres un experto en diseño instruccional y Canvas LMS.
+SYSTEM_PROMPT = """Eres un experto en diseño instruccional y Canvas LMS.
 Genera HTML válido para la página "Alineación de actividades".
 Estructura mínima: banner seguido de una tabla con columnas [R.A., Indicadores de logro, Descripción, Actividad, Tipo de actividad].
 Reglas:
@@ -29,6 +16,19 @@ Usa sólo la información proporcionada; si falta algo, inserta un aviso claro.
 Responde únicamente con HTML válido.
 """
 
+
+def alignment_creator_node(state: CourseState) -> CourseState:
+    """
+    Nodo encargado de crear y configurar la página de Alineación de Actividades del curso.
+    """
+    structure = state.get("course_structure")
+    course_id = resolve_course_id(state)
+    
+    if not structure or not course_id:
+        return {"errors": ["Faltan datos para crear la página de alineación"]}
+
+    print(f"Generando página de alineación para el curso {course_id}...")
+    
     # Construimos la lista de R.A. y Actividades para pasarlas al LLM
     outcomes_str = "\n".join([f"RA {i+1}: {ra}" for i, ra in enumerate(structure.learning_outcomes)])
     
@@ -50,22 +50,15 @@ Actividades del Curso:
 {activities_str}"""
 
     try:
-        response = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ])
-        html_content = response.content.replace("```html", "").replace("```", "").strip()
+        html_content = generate_course_html(
+            SYSTEM_PROMPT, human_prompt, state.get("course_files_map"), course_id
+        )
     except Exception as e:
         print(f"Error generando HTML de Alineación con LLM: {e}")
         return {"errors": [f"Error generando Alineación: {str(e)}"]}
-    
-    # Resolver URLs de archivos e imágenes
-    from src.utils.helpers import resolve_html_links
-    files_map = state.get("course_files_map") or {}
-    html_content = resolve_html_links(html_content, files_map, config.domain, course_id)
 
     result = create_page.invoke({
-        "title": "Alineación de actividades",
+        "title": ALIGNMENT_PAGE_TITLE,
         "body": html_content,
         "course_id": course_id
     })

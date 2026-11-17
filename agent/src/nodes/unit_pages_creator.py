@@ -1,17 +1,16 @@
 from src.state import CourseState
 from src.tools.canvas_api import create_page, add_item_to_module
-from src.utils.helpers import (
+from src.constants import ACTIVITIES_HEADER_TITLE
+from src.nodes.base import fail, proceed, resolve_course_id
+from src.utils.course_files import build_course_banner_html, resolve_html_links
+from src.utils.units import (
     unit_intro_page_title,
     unit_materials_page_title,
-    build_course_banner_html,
     build_unit_intro_page_body,
     build_unit_materials_page_body,
     collect_unit_resources,
-    resolve_html_links,
 )
 from config import config
-
-ACTIVITIES_HEADER_TITLE = "Actividades"
 
 
 def unit_pages_creator_node(state: CourseState) -> CourseState:
@@ -20,18 +19,18 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
     introducción/resultados (solo título) y materiales de estudio (banner + recursos).
     """
     if state.get("errors"):
-        return state
+        return proceed(state)
 
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
+    course_id = resolve_course_id(state)
     module_mapping = state.get("module_mapping") or {}
     files_map = state.get("course_files_map") or {}
 
     if not structure or not course_id:
-        return {**state, "errors": ["Faltan datos para crear páginas de unidad"]}
+        return fail(state, "Faltan datos para crear páginas de unidad")
 
     if not module_mapping:
-        return {**state, "errors": ["No hay unidades creadas en Canvas para añadir páginas"]}
+        return fail(state, "No hay unidades creadas en Canvas para añadir páginas")
 
     print(f"Creando páginas de unidad para el curso {course_id}...")
 
@@ -89,4 +88,4 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
             "course_id": course_id,
         })
 
-    return state
+    return proceed(state)

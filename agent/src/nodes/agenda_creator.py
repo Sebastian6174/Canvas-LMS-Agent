@@ -1,23 +1,11 @@
 from src.state import CourseState
+from src.constants import AGENDA_PAGE_TITLE
 from src.tools.canvas_api import create_page
-from config import config
-from langchain_core.messages import SystemMessage, HumanMessage
+from src.utils.units import activities_for_unit
+from src.nodes.base import resolve_course_id
+from src.utils.llm_html import generate_course_html
 
-def agenda_creator_node(state: CourseState) -> CourseState:
-    """
-    Nodo encargado de crear y configurar la página de Agenda de Actividades del curso.
-    """
-    structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
-    
-    if not structure or not course_id:
-        return {"errors": ["Faltan datos para crear la página de agenda"]}
-
-    print(f"Generando página de agenda para el curso {course_id}...")
-    
-    llm = config.get_llm()
-    
-    system_prompt = """Eres un experto en diseño instruccional y Canvas LMS.
+SYSTEM_PROMPT = """Eres un experto en diseño instruccional y Canvas LMS.
 Genera HTML válido para la página "Agenda de actividades" (cronograma) del curso.
 Usa la siguiente estructura mínima: banner, tabla con columnas [UNIDAD, SEMANAS, ACTIVIDAD, TIPO, DEDICACIÓN, VALORACIÓN] y una fila final con el total de horas.
 Reglas importantes:
@@ -28,8 +16,19 @@ Usa sólo la información en `state`. No inventes datos; si falta algo, inserta 
 Respondé SOLO con HTML válido (sin explicación adicional).
 """
 
-    from src.utils.helpers import activities_for_unit
 
+def agenda_creator_node(state: CourseState) -> CourseState:
+    """
+    Nodo encargado de crear y configurar la página de Agenda de Actividades del curso.
+    """
+    structure = state.get("course_structure")
+    course_id = resolve_course_id(state)
+    
+    if not structure or not course_id:
+        return {"errors": ["Faltan datos para crear la página de agenda"]}
+
+    print(f"Generando página de agenda para el curso {course_id}...")
+    
     # Construimos la información estructurada que necesita el LLM
     modules_info = ""
     for idx, mod in enumerate(structure.modules):
@@ -64,22 +63,15 @@ Cronograma / Dedicación:
 {schedule_info}"""
 
     try:
-        response = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ])
-        html_content = response.content.replace("```html", "").replace("```", "").strip()
+        html_content = generate_course_html(
+            SYSTEM_PROMPT, human_prompt, state.get("course_files_map"), course_id
+        )
     except Exception as e:
         print(f"Error generando HTML de Agenda con LLM: {e}")
         return {"errors": [f"Error generando Agenda: {str(e)}"]}
-    
-    # Resolver URLs de archivos e imágenes
-    from src.utils.helpers import resolve_html_links
-    files_map = state.get("course_files_map") or {}
-    html_content = resolve_html_links(html_content, files_map, config.domain, course_id)
 
     result = create_page.invoke({
-        "title": "Agenda de actividades",
+        "title": AGENDA_PAGE_TITLE,
         "body": html_content,
         "course_id": course_id
     })

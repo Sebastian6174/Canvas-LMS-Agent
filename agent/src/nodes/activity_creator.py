@@ -7,8 +7,12 @@ from src.tools.canvas_api import (
     enable_assignment_group_weights,
     list_assignments,
 )
-from src.activity_types import wrap_activity_description_html
-from src.utils.helpers import activities_for_unit, resolve_html_links
+from src.activities.content import generate_activity_content, safe_get_llm
+from src.activities.template import render_activity_html
+from src.activities.rules import format_weight, is_evaluative, weight_as_percent
+from src.nodes.base import fail, proceed, resolve_course_id
+from src.utils.course_files import resolve_html_links
+from src.utils.units import activities_for_unit
 from config import config
 
 ASSIGNMENT_POINTS = 5.0
@@ -21,39 +25,20 @@ def _normalize_assignment_name(name: str) -> str:
     return (name or "").strip().lower()
 
 
-def _weight_key(weight: float) -> float:
-    value = float(weight or 0)
-    if 0 < abs(value) < 1:
-        value *= 100
-    return round(value, 4)
-
-
-def _format_weight(weight: float) -> str:
-    weight = _weight_key(weight)
-    return str(int(weight)) if weight.is_integer() else str(weight).rstrip("0").rstrip(".")
-
-
-def _is_evaluative(activity) -> bool:
-    evaluation_type = (getattr(activity, "evaluation_type", "") or "").strip().lower()
-    if evaluation_type == "formativa":
-        return False
-    return evaluation_type == "evaluativa" or _weight_key(getattr(activity, "weight", 0)) > 0
-
-
 def _evaluative_group_name(weight: float) -> str:
-    return f"Evaluativas {_format_weight(weight)}% c/u"
+    return f"Evaluativas {format_weight(weight)}% c/u"
 
 
 def _build_assignment_group_specs(activities) -> dict[tuple[str, float | None], dict[str, float | str]]:
     specs: dict[tuple[str, float | None], dict[str, float | str]] = {}
-    has_formative = any(not _is_evaluative(act) for act in activities)
+    has_formative = any(not is_evaluative(act) for act in activities)
     if has_formative:
         specs[("formative", None)] = {"name": FORMATIVE_GROUP_NAME, "group_weight": 0.0}
 
     for act in activities:
-        if not _is_evaluative(act):
+        if not is_evaluative(act):
             continue
-        weight = _weight_key(getattr(act, "weight", 0))
+        weight = weight_as_percent(getattr(act, "weight", 0))
         key = ("evaluative", weight)
         if key not in specs:
             specs[key] = {
@@ -71,14 +56,14 @@ def _create_assignment_groups(course_id: str, activities) -> dict[tuple[str, flo
         print(f"No se pudo activar la ponderacion por grupos: {enable_result['error']}")
 
     evaluative_total = sum(
-        _weight_key(getattr(act, "weight", 0))
+        weight_as_percent(getattr(act, "weight", 0))
         for act in activities
-        if _is_evaluative(act)
+        if is_evaluative(act)
     )
     if abs(evaluative_total - EVALUATIVE_TOTAL_TARGET) > 0.01:
         print(
             "Advertencia: la suma de ponderaciones evaluativas es "
-            f"{_format_weight(evaluative_total)}%, no {int(EVALUATIVE_TOTAL_TARGET)}%."
+            f"{format_weight(evaluative_total)}%, no {int(EVALUATIVE_TOTAL_TARGET)}%."
         )
 
     group_ids: dict[tuple[str, float | None], int] = {}
@@ -99,13 +84,13 @@ def _create_assignment_groups(course_id: str, activities) -> dict[tuple[str, flo
 
 
 def _assignment_group_id_for_activity(activity, group_ids: dict[tuple[str, float | None], int]) -> int | None:
-    if not _is_evaluative(activity):
+    if not is_evaluative(activity):
         return group_ids.get(("formative", None))
-    return group_ids.get(("evaluative", _weight_key(getattr(activity, "weight", 0))))
+    return group_ids.get(("evaluative", weight_as_percent(getattr(activity, "weight", 0))))
 
 
 def _points_for_activity(activity) -> float:
-    return ASSIGNMENT_POINTS if _is_evaluative(activity) else FORMATIVE_POINTS
+    return ASSIGNMENT_POINTS if is_evaluative(activity) else FORMATIVE_POINTS
 
 
 def _delete_stale_assignments(course_id: str, current_activity_names: set[str]) -> None:
@@ -126,23 +111,32 @@ def _delete_stale_assignments(course_id: str, current_activity_names: set[str]) 
             print(f"No se pudo eliminar la actividad antigua '{assignment_name}': {result['error']}")
 
 
+def _week_for_activity(activity, schedule) -> int:
+    """Semana del cronograma en la que cae la actividad (1 si no aparece)."""
+    target = _normalize_assignment_name(activity.name)
+    for item in schedule or []:
+        if _normalize_assignment_name(item.activity_name) == target:
+            return item.week
+    return 1
+
+
 def activity_creator_node(state: CourseState) -> CourseState:
     """
     Nodo encargado de crear las actividades y asignarlas a sus unidades (módulos Canvas).
     """
     if state.get("errors"):
-        return state
+        return proceed(state)
 
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
+    course_id = resolve_course_id(state)
     module_mapping = state.get("module_mapping", {})
     files_map = state.get("course_files_map") or {}
 
     if not structure or not course_id:
-        return {**state, "errors": ["Faltan datos para crear las actividades"]}
+        return fail(state, "Faltan datos para crear las actividades")
 
     if not module_mapping:
-        return {**state, "errors": ["No hay módulos creados para asignar actividades"]}
+        return fail(state, "No hay módulos creados para asignar actividades")
 
     print(f"Creando actividades para el curso {course_id}...")
 
@@ -150,29 +144,22 @@ def activity_creator_node(state: CourseState) -> CourseState:
     _delete_stale_assignments(course_id, current_activity_names)
     assignment_group_ids = _create_assignment_groups(course_id, structure.activities)
 
+    llm = safe_get_llm(config.get_llm)
     canvas_assignment_ids = {}
     for act in structure.activities:
         print(f"Creando actividad: {act.name}")
         assignment_group_id = _assignment_group_id_for_activity(act, assignment_group_ids)
         points_possible = _points_for_activity(act)
 
-        # Resolve week from schedule
-        week = 1
-        if structure.schedule:
-            for item in structure.schedule:
-                if _normalize_assignment_name(item.activity_name) == _normalize_assignment_name(act.name):
-                    week = item.week
-                    break
+        week = _week_for_activity(act, structure.schedule)
+        content = generate_activity_content(llm, act, week)
 
-        description_html = wrap_activity_description_html(
-            activity_type=act.activity_type,
-            description=act.description,
-            related_learning_outcome=act.related_learning_outcome,
+        description_html = render_activity_html(
+            description_html=content.description_html,
+            delivery_form=content.delivery_form,
+            resources=content.resources,
             weight=act.weight,
             evaluation_type=act.evaluation_type,
-            points_possible=points_possible,
-            delivery_form=getattr(act, "delivery_form", ""),
-            resources=act.resources,
             duration=act.duration,
             week=week,
             files_map=files_map,
@@ -185,8 +172,8 @@ def activity_creator_node(state: CourseState) -> CourseState:
             "name": act.name,
             "description": description_html,
             "points_possible": points_possible,
-            "grading_type": "points" if _is_evaluative(act) else "not_graded",
-            "omit_from_final_grade": not _is_evaluative(act),
+            "grading_type": "points" if is_evaluative(act) else "not_graded",
+            "omit_from_final_grade": not is_evaluative(act),
             "course_id": course_id
         }
         if assignment_group_id is not None:
@@ -224,4 +211,4 @@ def activity_creator_node(state: CourseState) -> CourseState:
                 "course_id": course_id,
             })
 
-    return {**state, "canvas_assignment_ids": canvas_assignment_ids}
+    return proceed(state, canvas_assignment_ids=canvas_assignment_ids)

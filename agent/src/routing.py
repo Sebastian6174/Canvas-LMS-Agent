@@ -6,9 +6,6 @@ from langgraph.graph import END
 
 from src.state import CourseState
 
-INTRO_MODULE_NAME = "Introducción al curso y ayuda"
-CREDITS_MODULE_NAME = "Créditos"
-
 # Creadores que deben terminar antes de la página de inicio (enlaces reales en state).
 CONTENT_CREATOR_NODES: List[str] = [
     "agenda_creator",
@@ -16,9 +13,6 @@ CONTENT_CREATOR_NODES: List[str] = [
     "forum_creator",
     "credits_creator",
 ]
-
-# Compatibilidad con reportes/tests que listan todos los nodos de contenido.
-CREATOR_NODES: List[str] = CONTENT_CREATOR_NODES + ["page_creator"]
 
 
 def has_errors(state: CourseState) -> bool:
@@ -28,15 +22,10 @@ def has_errors(state: CourseState) -> bool:
 def route_after_analyst(state: CourseState) -> str:
     if has_errors(state):
         return END
-    if state.get("analysis_chunks") and not state.get("is_valid") and not has_errors(state):
-        if state.get("analysis_chunk_index", 0) < len(state["analysis_chunks"]):
-            return "analyst"
-    if state.get("activities_to_enrich"):
-        return "enrich_activities"
-    if (
-        state.get("is_valid")
-        and state.get("course_structure")
-    ):
+    chunks = state.get("analysis_chunks")
+    if chunks and not state.get("is_valid") and state.get("analysis_chunk_index", 0) < len(chunks):
+        return "analyst"
+    if state.get("is_valid") and state.get("course_structure"):
         return "setup_course"
     return END
 

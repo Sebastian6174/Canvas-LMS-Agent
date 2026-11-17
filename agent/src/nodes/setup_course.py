@@ -1,6 +1,7 @@
 from src.state import CourseState
 from src.tools.canvas_api import create_course, import_base_course_files, list_course_files
-from src.utils.helpers import build_course_files_map
+from src.nodes.base import fail, proceed
+from src.utils.course_files import build_course_files_map
 from config import config
 
 def setup_course_node(state: CourseState) -> CourseState:
@@ -9,7 +10,7 @@ def setup_course_node(state: CourseState) -> CourseState:
     """
     structure = state.get("course_structure")
     if not structure:
-        return {**state, "errors": ["No se encontró la estructura del curso"]}
+        return fail(state, "No se encontró la estructura del curso")
 
     print(f"Creando curso: {structure.academic_program} - {structure.semester}")
     
@@ -24,14 +25,14 @@ def setup_course_node(state: CourseState) -> CourseState:
         })
         
         if "error" in new_course:
-            return {**state, "errors": [f"Error al crear curso: {new_course['error']}"]}
+            return fail(state, f"Error al crear curso: {new_course['error']}")
         
         course_id = str(new_course.get("id"))
         print(f"Curso creado con ID: {course_id}")
     else:
         course_id = config.course_id
         if not course_id:
-            return {**state, "errors": ["COURSE_ID no configurado en .env"]}
+            return fail(state, "COURSE_ID no configurado en .env")
         print(f"Usando curso existente con ID: {course_id}")
 
     base_course_id = config.base_course_id
@@ -58,8 +59,4 @@ def setup_course_node(state: CourseState) -> CourseState:
     else:
         print(f"Advertencia: No se pudieron obtener los archivos del curso de Canvas (resultado: {course_files}).")
 
-    return {
-        **state,
-        "canvas_course_id": course_id,
-        "course_files_map": files_map
-    }
+    return proceed(state, canvas_course_id=course_id, course_files_map=files_map)

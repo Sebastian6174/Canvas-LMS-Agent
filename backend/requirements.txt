@@ -1,1 +1,2 @@
+-r ../agent/requirements.txt
 flask

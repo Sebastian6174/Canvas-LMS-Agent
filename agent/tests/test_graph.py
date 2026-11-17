@@ -1,7 +1,7 @@
 from langgraph.graph import END
 
 from src.graph import create_graph
-from src.routing import CREATOR_NODES
+from src.routing import CONTENT_CREATOR_NODES
 
 
 def test_graph_compiles():
@@ -22,7 +22,8 @@ def test_graph_has_conditional_entry_points():
     assert "rubrics_creator" in node_names
     assert "syllabus_creator" in node_names
 
-    for creator in CREATOR_NODES:
+    assert "page_creator" in node_names
+    for creator in CONTENT_CREATOR_NODES:
         assert creator in node_names
 
 

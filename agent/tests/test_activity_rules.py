@@ -1,11 +1,10 @@
-from src.activity_types import (
+from src.activities.rules import (
     normalize_activity_type,
     format_activity_display_name,
     infer_evaluation_type,
     ACTIVITY_TYPE_DEFAULT,
-    wrap_activity_description_html,
 )
-from src.nodes.analyst import _enrich_activity_titles_and_types
+from src.analysis.enrichment import enrich_activity_titles_and_types
 from src.state import Activity, CourseStructure, Module
 
 
@@ -56,18 +55,7 @@ def test_enrich_activity_titles_and_types_updates_modules_and_schedule():
         ],
         schedule=[],
     )
-    enriched = _enrich_activity_titles_and_types(structure)
+    enriched = enrich_activity_titles_and_types(structure)
     assert enriched.activities[0].name == "Actividad 1. Tarea: Tarea uno"
     assert enriched.modules[0].activities[0] == "Actividad 1. Tarea: Tarea uno"
     assert enriched.activities[0].evaluation_type == "Evaluativa"
-
-
-def test_wrap_activity_description_includes_type_guide():
-    html = wrap_activity_description_html(
-        activity_type="Quiz",
-        description="Contenido",
-        related_learning_outcome="RA1",
-        weight=5,
-    )
-    assert "Tipo de actividad" in html
-    assert "Contenido" in html

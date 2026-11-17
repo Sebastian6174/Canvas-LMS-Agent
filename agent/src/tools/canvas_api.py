@@ -15,25 +15,36 @@ def _canvas_request(method: str, endpoint: str, data: Optional[Dict] = None, cus
     domain = config.domain
     # Use custom_course_id if provided, otherwise fallback to config
     target_course_id = custom_course_id or config.course_id
-    
+
     # If the endpoint starts with /accounts or /courses (full path), we don't prepend the courses prefix
     if endpoint.startswith("/accounts") or endpoint.startswith("/courses"):
         url = f"https://{domain}/api/v1{endpoint}"
     else:
         url = f"https://{domain}/api/v1/courses/{target_course_id}{endpoint}"
-        
+
     headers = {
         "Authorization": f"Bearer {config.canvas_api_token}",
         "Content-Type": "application/json"
     }
-    
+
     response = requests.request(method, url, headers=headers, json=data)
-    
+
     if response.status_code not in [200, 201]:
         print(f"Error in Canvas API ({method} {url}): {response.status_code} - {response.text}")
         return {"error": response.text, "status_code": response.status_code}
-    
+
     return response.json()
+
+def _find_by_name(items: Any, name: str, field: str = "name") -> Optional[Dict[str, Any]]:
+    """Primer elemento cuyo `field` coincide con `name` (sin distinguir mayúsculas ni espacios)."""
+    if not isinstance(items, list):
+        return None
+    target = name.strip().lower()
+    return next(
+        (item for item in items if (item.get(field) or "").strip().lower() == target),
+        None,
+    )
+
 
 @tool
 def create_course(name: str, course_code: str, account_id: str = "1") -> Dict:
@@ -180,41 +191,35 @@ def create_assignment(
     Crea o actualiza una actividad (assignment) en el curso de Canvas.
     Si ya existe una actividad con el mismo nombre, la actualiza para evitar duplicados.
     """
-    assignments = _canvas_request("GET", "/assignments?per_page=100", custom_course_id=course_id)
-    
-    if isinstance(assignments, list):
-        for a in assignments:
-            if a.get("name", "").strip().lower() == name.strip().lower():
-                assignment_id = a.get("id")
-                print(f"La actividad '{name}' ya existe (ID: {assignment_id}). Actualizándola...")
-                payload = {
-                    "assignment": {
-                        "description": description,
-                        "points_possible": points_possible,
-                        "submission_types": submission_types,
-                        "grading_type": grading_type,
-                        "omit_from_final_grade": omit_from_final_grade,
-                        "published": True
-                    }
-                }
-                if assignment_group_id is not None:
-                    payload["assignment"]["assignment_group_id"] = assignment_group_id
-                return _canvas_request("PUT", f"/assignments/{assignment_id}", payload, custom_course_id=course_id)
-                
-    payload = {
-        "assignment": {
-            "name": name,
-            "description": description,
-            "points_possible": points_possible,
-            "submission_types": submission_types,
-            "grading_type": grading_type,
-            "omit_from_final_grade": omit_from_final_grade,
-            "published": True
-        }
+    assignment = {
+        "description": description,
+        "points_possible": points_possible,
+        "submission_types": submission_types,
+        "grading_type": grading_type,
+        "omit_from_final_grade": omit_from_final_grade,
+        "published": True,
     }
     if assignment_group_id is not None:
-        payload["assignment"]["assignment_group_id"] = assignment_group_id
-    return _canvas_request("POST", "/assignments", payload, custom_course_id=course_id)
+        assignment["assignment_group_id"] = assignment_group_id
+
+    assignments = _canvas_request("GET", "/assignments?per_page=100", custom_course_id=course_id)
+    existing = _find_by_name(assignments, name)
+    if existing:
+        assignment_id = existing.get("id")
+        print(f"La actividad '{name}' ya existe (ID: {assignment_id}). Actualizándola...")
+        return _canvas_request(
+            "PUT",
+            f"/assignments/{assignment_id}",
+            {"assignment": assignment},
+            custom_course_id=course_id,
+        )
+
+    return _canvas_request(
+        "POST",
+        "/assignments",
+        {"assignment": {"name": name, **assignment}},
+        custom_course_id=course_id,
+    )
 
 @tool
 def list_assignments(course_id: Optional[str] = None) -> List[Dict]:
@@ -254,17 +259,16 @@ def create_or_update_assignment_group(
     groups = list_assignment_groups.invoke({"course_id": course_id})
     payload = {"name": name, "group_weight": group_weight}
 
-    if isinstance(groups, list):
-        for group in groups:
-            if group.get("name", "").strip().lower() == name.strip().lower():
-                group_id = group.get("id")
-                print(f"El grupo de actividades '{name}' ya existe (ID: {group_id}). Actualizandolo...")
-                return _canvas_request(
-                    "PUT",
-                    f"/assignment_groups/{group_id}",
-                    payload,
-                    custom_course_id=course_id,
-                )
+    existing = _find_by_name(groups, name)
+    if existing:
+        group_id = existing.get("id")
+        print(f"El grupo de actividades '{name}' ya existe (ID: {group_id}). Actualizandolo...")
+        return _canvas_request(
+            "PUT",
+            f"/assignment_groups/{group_id}",
+            payload,
+            custom_course_id=course_id,
+        )
 
     return _canvas_request("POST", "/assignment_groups", payload, custom_course_id=course_id)
 
@@ -313,12 +317,8 @@ def create_or_update_assignment_rubric(
     Crea o actualiza una rúbrica de Canvas y la asocia a un assignment.
     """
     rubrics = _canvas_request("GET", "/rubrics?per_page=100", custom_course_id=course_id)
-    rubric_id = None
-    if isinstance(rubrics, list):
-        for rubric in rubrics:
-            if rubric.get("title", "").strip().lower() == title.strip().lower():
-                rubric_id = rubric.get("id")
-                break
+    existing = _find_by_name(rubrics, title, field="title")
+    rubric_id = existing.get("id") if existing else None
 
     payload = {
         "rubric": {
@@ -340,6 +340,25 @@ def create_or_update_assignment_rubric(
 
     return _canvas_request("POST", "/rubrics", payload, custom_course_id=course_id)
 
+def _is_same_module_item(
+    item: Dict[str, Any],
+    title: str,
+    type: str,
+    content_id: Optional[Any],
+    page_url: Optional[str],
+) -> bool:
+    """Indica si `item` ya representa el contenido que se quiere agregar al módulo."""
+    if item.get("type") != type:
+        return False
+    if (item.get("title") or "").strip().lower() == title.strip().lower():
+        return True
+    if type == "Page" and page_url:
+        return item.get("page_url") == page_url
+    if content_id is not None:
+        return str(item.get("content_id")) == str(content_id)
+    return False
+
+
 @tool
 def add_item_to_module(module_id: int, title: str, type: str, content_id: Optional[Any] = None, page_url: Optional[str] = None, course_id: Optional[str] = None) -> Dict:
     """
@@ -351,18 +370,7 @@ def add_item_to_module(module_id: int, title: str, type: str, content_id: Option
     existing_items = _canvas_request("GET", f"/modules/{module_id}/items?per_page=100", custom_course_id=course_id)
     if isinstance(existing_items, list):
         for item in existing_items:
-            match = False
-            if item.get("type") == type:
-                if type == "Page" and page_url:
-                    if item.get("page_url") == page_url or item.get("title", "").strip().lower() == title.strip().lower():
-                        match = True
-                elif content_id is not None:
-                    if str(item.get("content_id")) == str(content_id) or item.get("title", "").strip().lower() == title.strip().lower():
-                        match = True
-                else:
-                    if item.get("title", "").strip().lower() == title.strip().lower():
-                        match = True
-            if match:
+            if _is_same_module_item(item, title, type, content_id, page_url):
                 print(f"El ítem '{title}' de tipo '{type}' ya existe en el módulo {module_id}. Omitiendo adición.")
                 return item
 
@@ -378,7 +386,7 @@ def add_item_to_module(module_id: int, title: str, type: str, content_id: Option
         pass
     elif content_id is not None:
         payload["module_item"]["content_id"] = content_id
-        
+
     return _canvas_request("POST", f"/modules/{module_id}/items", payload, custom_course_id=course_id)
 
 @tool
@@ -426,20 +434,14 @@ def create_page(title: str, body: str, course_id: Optional[str] = None) -> Dict:
     Si ya existe una página con el mismo título, la actualiza para evitar duplicados.
     """
     pages = _canvas_request("GET", "/pages?per_page=100", custom_course_id=course_id)
-    
-    if isinstance(pages, list):
-        for p in pages:
-            if p.get("title", "").strip().lower() == title.strip().lower():
-                url_slug = p.get("url")
-                print(f"La página '{title}' ya existe (slug: {url_slug}). Actualizándola...")
-                payload = {
-                    "wiki_page": {
-                        "body": body,
-                        "published": True
-                    }
-                }
-                return _canvas_request("PUT", f"/pages/{url_slug}", payload, custom_course_id=course_id)
-                
+
+    existing = _find_by_name(pages, title, field="title")
+    if existing:
+        url_slug = existing.get("url")
+        print(f"La página '{title}' ya existe (slug: {url_slug}). Actualizándola...")
+        payload = {"wiki_page": {"body": body, "published": True}}
+        return _canvas_request("PUT", f"/pages/{url_slug}", payload, custom_course_id=course_id)
+
     payload = {
         "wiki_page": {
             "title": title,
@@ -456,18 +458,14 @@ def create_discussion_topic(title: str, message: str, course_id: Optional[str] =
     Si ya existe un foro con el mismo título, lo actualiza para evitar duplicados.
     """
     topics = _canvas_request("GET", "/discussion_topics?per_page=100", custom_course_id=course_id)
-    
-    if isinstance(topics, list):
-        for t in topics:
-            if t.get("title", "").strip().lower() == title.strip().lower():
-                topic_id = t.get("id")
-                print(f"El foro '{title}' ya existe (ID: {topic_id}). Actualizándolo...")
-                payload = {
-                    "message": message,
-                    "published": True
-                }
-                return _canvas_request("PUT", f"/discussion_topics/{topic_id}", payload, custom_course_id=course_id)
-                
+
+    existing = _find_by_name(topics, title, field="title")
+    if existing:
+        topic_id = existing.get("id")
+        print(f"El foro '{title}' ya existe (ID: {topic_id}). Actualizándolo...")
+        payload = {"message": message, "published": True}
+        return _canvas_request("PUT", f"/discussion_topics/{topic_id}", payload, custom_course_id=course_id)
+
     payload = {
         "title": title,
         "message": message,

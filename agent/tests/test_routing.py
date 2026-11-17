@@ -2,7 +2,6 @@ from langgraph.graph import END
 
 from src.routing import (
     CONTENT_CREATOR_NODES,
-    CREATOR_NODES,
     has_errors,
     route_after_analyst,
     route_after_setup,
@@ -93,5 +92,4 @@ class TestCreatorNodes:
     def test_parallel_content_creators_exclude_home_page(self):
         assert len(CONTENT_CREATOR_NODES) == 4
         assert "page_creator" not in CONTENT_CREATOR_NODES
-        assert "page_creator" in CREATOR_NODES
         assert "module_generator" not in CONTENT_CREATOR_NODES

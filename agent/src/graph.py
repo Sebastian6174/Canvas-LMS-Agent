@@ -7,14 +7,7 @@ from src.routing import (
     route_after_setup,
     route_after_modules,
 )
-from src.nodes.analyst import (
-    analyst_node,
-    extract_modules_node,
-    extract_activities_list_node,
-    extract_schedule_node,
-    extract_rubrics_list_node,
-    enrich_activities_node,
-)
+from src.nodes.analyst import analyst_node
 from src.nodes.setup_course import setup_course_node
 from src.nodes.page_creator import page_creator_node
 from src.nodes.agenda_creator import agenda_creator_node
@@ -33,11 +26,6 @@ def create_graph():
     workflow = StateGraph(CourseState)
 
     workflow.add_node("analyst", analyst_node)
-    workflow.add_node("extract_modules", extract_modules_node)
-    workflow.add_node("extract_activities_list", extract_activities_list_node)
-    workflow.add_node("extract_schedule", extract_schedule_node)
-    workflow.add_node("extract_rubrics_list", extract_rubrics_list_node)
-    workflow.add_node("enrich_activities", enrich_activities_node)
 
     workflow.add_node("setup_course", setup_course_node)
     workflow.add_node("module_generator", module_generator_node)
@@ -55,11 +43,7 @@ def create_graph():
     # The analyst processes one document chunk per graph iteration.
     workflow.add_edge(START, "analyst")
     workflow.add_conditional_edges("analyst", route_after_analyst)
-    
-    # Compatibility extraction nodes remain registered for direct callers/tests.
-    workflow.add_conditional_edges("extract_rubrics_list", route_after_analyst)
-    workflow.add_conditional_edges("enrich_activities", route_after_analyst)
-    
+
     workflow.add_conditional_edges("setup_course", route_after_setup)
     workflow.add_conditional_edges("module_generator", route_after_modules)
 
@@ -72,7 +56,7 @@ def create_graph():
     workflow.add_edge("activity_creator", "rubrics_creator")
     workflow.add_edge("rubrics_creator", "syllabus_creator")
     workflow.add_edge("syllabus_creator", END)
-        
+
     return workflow.compile()
 
 

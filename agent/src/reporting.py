@@ -1,5 +1,5 @@
 from config import config
-from src.routing import CREATOR_NODES
+from src.routing import CONTENT_CREATOR_NODES
 
 
 CONTENT_ERROR_KEYWORDS = (
@@ -99,7 +99,7 @@ def _report_canvas_setup(final_state: dict, errors: list) -> bool:
 
 
 def _report_content(final_state: dict, errors: list) -> bool:
-    print(f"\n[3] Contenido en Canvas ({len(CREATOR_NODES) - 1} nodos en paralelo + pagina de inicio):")
+    print(f"\n[3] Contenido en Canvas ({len(CONTENT_CREATOR_NODES)} nodos en paralelo + pagina de inicio):")
     content_checks = {
         "Pagina de inicio": not any("page_creator" in error.lower() for error in errors),
         "Agenda de actividades": bool(final_state.get("agenda_page_url")),

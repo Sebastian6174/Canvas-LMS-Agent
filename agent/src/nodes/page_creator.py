@@ -1,20 +1,25 @@
 from src.state import CourseState
 from src.tools.canvas_api import update_course_home_page
-from src.routing import INTRO_MODULE_NAME
-from src.utils.helpers import (
-    resolve_html_links,
-    build_home_page_nav_links,
-    apply_home_page_nav_links,
-)
+from src.constants import INTRO_MODULE_NAME
+from src.nodes.base import resolve_course_id
+from src.utils.home_page import apply_home_page_nav_links, build_home_page_nav_links
+from src.utils.llm_html import generate_course_html
 from config import config
-from langchain_core.messages import SystemMessage, HumanMessage
+
+SYSTEM_PROMPT = """Eres un experto en diseño web y Canvas LMS.
+Genera HTML válido para la página de inicio del curso usando la siguiente estructura mínima: banner (imagen centrada), ficha técnica (tabla con Nombre del curso, Programa, Nivel, Créditos, Pre-requisitos), introducción, resultados de aprendizaje y profesor.
+Usa únicamente la información proporcionada en el `state`. Si falta algún dato, inserta en su lugar un mensaje claro indicando qué falta (p. ej. "Falta: créditos del curso").
+No inventes datos ni enlaces. Los enlaces relativos serán resueltos posteriormente por la aplicación.
+Respóndele al llamador SOLO con HTML válido (sin explicaciones ni marcas adicionales).
+"""
+
 
 def page_creator_node(state: CourseState) -> CourseState:
     """
     Nodo encargado de crear y configurar la página de inicio del curso.
     """
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
+    course_id = resolve_course_id(state)
     teacher_info = state.get("teacher_info", "")
     
     if not structure or not course_id:
@@ -22,29 +27,15 @@ def page_creator_node(state: CourseState) -> CourseState:
 
     print(f"Configurando página de inicio para el curso {course_id}...")
     
-    llm = config.get_llm()
-    
-    system_prompt = """Eres un experto en diseño web y Canvas LMS.
-Genera HTML válido para la página de inicio del curso usando la siguiente estructura mínima: banner (imagen centrada), ficha técnica (tabla con Nombre del curso, Programa, Nivel, Créditos, Pre-requisitos), introducción, resultados de aprendizaje y profesor.
-Usa únicamente la información proporcionada en el `state`. Si falta algún dato, inserta en su lugar un mensaje claro indicando qué falta (p. ej. "Falta: créditos del curso").
-No inventes datos ni enlaces. Los enlaces relativos serán resueltos posteriormente por la aplicación.
-Respóndele al llamador SOLO con HTML válido (sin explicaciones ni marcas adicionales).
-"""
-
     human_prompt = f"Información del curso:\nPrograma Académico: {structure.academic_program}\nDescripción: {structure.description}\n\nInformación del/los Docente(s) extraída del documento adicional:\n{teacher_info}"
 
     try:
-        response = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ])
-        html_content = response.content.replace("```html", "").replace("```", "").strip()
+        html_content = generate_course_html(
+            SYSTEM_PROMPT, human_prompt, state.get("course_files_map"), course_id
+        )
     except Exception as e:
         print(f"Error generando HTML con LLM: {e}")
         return {"errors": [f"Error generando HTML con LLM: {str(e)}"]}
-    
-    files_map = state.get("course_files_map") or {}
-    html_content = resolve_html_links(html_content, files_map, config.domain, course_id)
 
     module_mapping = state.get("module_mapping") or {}
     course_module_names = [mod.name for mod in structure.modules]

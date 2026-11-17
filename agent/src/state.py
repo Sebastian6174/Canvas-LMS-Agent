@@ -104,6 +104,10 @@ class PartialActivity(BaseModel):
     rubric: Optional[str] = None
     related_learning_outcome: str = ""
     weight: float = 0
+    delivery_form: str = Field(
+        default="",
+        description="Forma de entrega sólo si el documento la indica explícitamente; si no, vacío",
+    )
     module_name: str = ""
     resources: List[str] = Field(default_factory=list)
 
@@ -156,12 +160,8 @@ class CourseState(TypedDict):
     syllabus_page_url: Optional[str]
     is_valid: bool
     errors: Annotated[List[str], operator.add]
-    downloadable_program: str
     course_files_map: Optional[Dict[str, str]]
     canvas_assignment_ids: Optional[Dict[str, int]]
     analysis_chunks: Optional[List[str]]
     analysis_chunk_index: int
     analysis_partial_structure: Optional[Dict]
-    remaining_tabs: Optional[List[Dict[str, str]]]
-    activities_to_enrich: Optional[List[str]]
-    rubrics_to_enrich: Optional[List[str]]

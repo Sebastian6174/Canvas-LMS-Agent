@@ -1,10 +1,8 @@
 from src.state import Activity, CourseStructure, Module
-from src.nodes.analyst import _enrich_activity_unit_links
-from src.utils.helpers import (
-    resolve_html_links,
-    build_course_files_map,
-    build_home_page_nav_links,
-    apply_home_page_nav_links,
+from src.analysis.enrichment import enrich_activity_unit_links
+from src.utils.course_files import build_course_files_map, resolve_html_links
+from src.utils.home_page import apply_home_page_nav_links, build_home_page_nav_links
+from src.utils.units import (
     unit_intro_page_title,
     unit_materials_page_title,
     collect_unit_resources,
@@ -191,5 +189,5 @@ def test_enrich_activity_unit_links_fills_missing_module_name():
         ],
         schedule=[],
     )
-    enriched = _enrich_activity_unit_links(structure)
+    enriched = enrich_activity_unit_links(structure)
     assert enriched.activities[0].module_name == "Unidad 1. Tema"

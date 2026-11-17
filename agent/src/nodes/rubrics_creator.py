@@ -1,7 +1,8 @@
 import re
 from typing import Optional
 
-from config import config
+from src.activities.rules import is_evaluative
+from src.nodes.base import fail, proceed, resolve_course_id
 from src.state import CourseState, Rubric
 from src.tools.canvas_api import create_or_update_assignment_rubric, list_assignments
 
@@ -49,13 +50,6 @@ def _find_assignment_id(
             return assignment.get("id")
 
     return None
-
-
-def _is_evaluative(activity) -> bool:
-    evaluation_type = (getattr(activity, "evaluation_type", "") or "").strip().lower()
-    if evaluation_type == "formativa":
-        return False
-    return evaluation_type == "evaluativa" or float(getattr(activity, "weight", 0) or 0) > 0
 
 
 def _criterion_points_for_rubric(rubric: Rubric, total_points: float) -> list[float]:
@@ -118,18 +112,18 @@ def rubrics_creator_node(state: CourseState) -> CourseState:
     Crea rubricas reales en Canvas y las asocia a sus actividades evaluativas.
     """
     if state.get("errors"):
-        return state
+        return proceed(state)
 
     structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
+    course_id = resolve_course_id(state)
     canvas_assignment_ids = state.get("canvas_assignment_ids") or {}
 
     if not structure or not course_id:
-        return {**state, "errors": ["Faltan datos para crear las rubricas"]}
+        return fail(state, "Faltan datos para crear las rubricas")
 
     if not structure.rubrics:
         print("No se encontraron rubricas en la estructura del curso. Omitiendo creacion.")
-        return state
+        return proceed(state)
 
     print(f"Creando rubricas de Canvas para el curso {course_id}...")
 
@@ -140,7 +134,7 @@ def rubrics_creator_node(state: CourseState) -> CourseState:
             print(f"No se encontro actividad asociada para la rubrica '{rubric.name}'. Omitiendo.")
             continue
 
-        if not _is_evaluative(activity):
+        if not is_evaluative(activity):
             print(f"La actividad '{activity.name}' es formativa. Omitiendo rubrica calificada.")
             continue
 
@@ -168,8 +162,8 @@ def rubrics_creator_node(state: CourseState) -> CourseState:
                 f"Error creando rubrica '{rubric_title}' "
                 f"(origen: '{rubric.name}'): {result['error']}"
             )
-            return {**state, "errors": [f"Error creando rubrica: {rubric_title}"]}
+            return fail(state, f"Error creando rubrica: {rubric_title}")
 
         print(f"Rubrica '{rubric_title}' asociada a '{activity.name}' (origen: '{rubric.name}').")
 
-    return state
+    return proceed(state)

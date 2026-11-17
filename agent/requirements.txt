@@ -1,11 +1,10 @@
-fastmcp
 langgraph
+langchain-core
+langchain-openai
+langchain-google-genai
+pydantic
 requests
 python-dotenv
 google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
-langchain-openai
-openai
+google-auth
 pytest
-flask

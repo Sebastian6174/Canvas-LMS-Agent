@@ -1,23 +1,10 @@
 from src.state import CourseState
+from src.constants import CREDITS_PAGE_TITLE
 from src.tools.canvas_api import create_page
-from config import config
-from langchain_core.messages import SystemMessage, HumanMessage
+from src.nodes.base import resolve_course_id
+from src.utils.llm_html import generate_course_html
 
-def credits_creator_node(state: CourseState) -> CourseState:
-    """
-    Nodo encargado de crear y configurar la página de Créditos del curso.
-    """
-    structure = state.get("course_structure")
-    course_id = state.get("canvas_course_id") or config.course_id
-    
-    if not structure or not course_id:
-        return {"errors": ["Faltan datos para crear la página de créditos"]}
-
-    print(f"Generando página de créditos para el curso {course_id}...")
-    
-    llm = config.get_llm()
-    
-    system_prompt = """Eres un experto en diseño instruccional y Canvas LMS.
+SYSTEM_PROMPT = """Eres un experto en diseño instruccional y Canvas LMS.
 Tu tarea es generar el código HTML para la página de "Créditos" de un curso virtual, basándote en la plantilla y la información proporcionada.
 
 Debes usar exactamente esta estructura HTML:
@@ -53,6 +40,19 @@ REGLAS DE GENERACIÓN:
 3. Tu respuesta SOLO debe contener código HTML válido. Sin markdown ticks de ```html.
 """
 
+
+def credits_creator_node(state: CourseState) -> CourseState:
+    """
+    Nodo encargado de crear y configurar la página de Créditos del curso.
+    """
+    structure = state.get("course_structure")
+    course_id = resolve_course_id(state)
+    
+    if not structure or not course_id:
+        return {"errors": ["Faltan datos para crear la página de créditos"]}
+
+    print(f"Generando página de créditos para el curso {course_id}...")
+    
     human_prompt = f"""Docente del curso: {structure.teacher}
 Programa Académico: {structure.academic_program}
 Nivel Académico: {structure.academic_level}
@@ -60,22 +60,15 @@ Créditos del Curso: {structure.credits}
 Información adicional del docente (teacher_info): {state.get('teacher_info', 'No disponible')}"""
 
     try:
-        response = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ])
-        html_content = response.content.replace("```html", "").replace("```", "").strip()
+        html_content = generate_course_html(
+            SYSTEM_PROMPT, human_prompt, state.get("course_files_map"), course_id
+        )
     except Exception as e:
         print(f"Error generando HTML de Créditos con LLM: {e}")
         return {"errors": [f"Error generando Créditos: {str(e)}"]}
-    
-    # Resolver URLs de archivos e imágenes
-    from src.utils.helpers import resolve_html_links
-    files_map = state.get("course_files_map") or {}
-    html_content = resolve_html_links(html_content, files_map, config.domain, course_id)
 
     result = create_page.invoke({
-        "title": "Créditos",
+        "title": CREDITS_PAGE_TITLE,
         "body": html_content,
         "course_id": course_id
     })
