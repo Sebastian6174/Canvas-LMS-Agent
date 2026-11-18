@@ -186,6 +186,7 @@ def create_assignment(
     assignment_group_id: Optional[int] = None,
     grading_type: str = "points",
     omit_from_final_grade: bool = False,
+    position: Optional[int] = None,
 ) -> Dict:
     """
     Crea o actualiza una actividad (assignment) en el curso de Canvas.
@@ -201,6 +202,8 @@ def create_assignment(
     }
     if assignment_group_id is not None:
         assignment["assignment_group_id"] = assignment_group_id
+    if position is not None:
+        assignment["position"] = position
 
     assignments = _canvas_request("GET", "/assignments?per_page=100", custom_course_id=course_id)
     existing = _find_by_name(assignments, name)
@@ -360,19 +363,36 @@ def _is_same_module_item(
 
 
 @tool
-def add_item_to_module(module_id: int, title: str, type: str, content_id: Optional[Any] = None, page_url: Optional[str] = None, course_id: Optional[str] = None) -> Dict:
+def add_item_to_module(
+    module_id: int,
+    title: str,
+    type: str,
+    content_id: Optional[Any] = None,
+    page_url: Optional[str] = None,
+    course_id: Optional[str] = None,
+    position: Optional[int] = None,
+) -> Dict:
     """
     Agrega un ítem a un módulo existente.
     Si el tipo es 'Page', se debe proporcionar 'page_url' (el slug de la página).
     Para 'Assignment' o 'Discussion', se proporciona 'content_id'.
-    Si el ítem ya existe en el módulo, retorna el ítem existente para evitar duplicidad.
+    Si el ítem ya existe no se duplica; si se indica `position`, se mueve a esa posición.
     """
     existing_items = _canvas_request("GET", f"/modules/{module_id}/items?per_page=100", custom_course_id=course_id)
     if isinstance(existing_items, list):
         for item in existing_items:
-            if _is_same_module_item(item, title, type, content_id, page_url):
+            if not _is_same_module_item(item, title, type, content_id, page_url):
+                continue
+            if position is None or item.get("position") == position:
                 print(f"El ítem '{title}' de tipo '{type}' ya existe en el módulo {module_id}. Omitiendo adición.")
                 return item
+            print(f"El ítem '{title}' ya existe en el módulo {module_id}. Moviéndolo a la posición {position}.")
+            return _canvas_request(
+                "PUT",
+                f"/modules/{module_id}/items/{item.get('id')}",
+                {"module_item": {"position": position}},
+                custom_course_id=course_id,
+            )
 
     payload = {
         "module_item": {
@@ -386,6 +406,8 @@ def add_item_to_module(module_id: int, title: str, type: str, content_id: Option
         pass
     elif content_id is not None:
         payload["module_item"]["content_id"] = content_id
+    if position is not None:
+        payload["module_item"]["position"] = position
 
     return _canvas_request("POST", f"/modules/{module_id}/items", payload, custom_course_id=course_id)
 

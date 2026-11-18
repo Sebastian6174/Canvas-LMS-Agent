@@ -59,6 +59,11 @@ def test_module_generator_publishes_existing_modules(monkeypatch):
         "src.nodes.module_generator.publish_module",
         type("T", (), {"invoke": mock_publish_module})(),
     )
+    positions = []
+    monkeypatch.setattr(
+        "src.nodes.module_generator.set_module_position",
+        type("T", (), {"invoke": lambda self, kwargs: positions.append(kwargs) or {"id": kwargs["module_id"]}})(),
+    )
 
     result = module_generator_node(
         {
@@ -71,6 +76,8 @@ def test_module_generator_publishes_existing_modules(monkeypatch):
     assert result["module_mapping"]["Unidad 1"] == 3
     assert published == [
         {"module_id": 1, "course_id": "100"},
-        {"module_id": 2, "course_id": "100"},
         {"module_id": 3, "course_id": "100"},
+        {"module_id": 2, "course_id": "100"},
     ]
+    # Introducción primero, unidades en orden y créditos al final.
+    assert [(p["module_id"], p["position"]) for p in positions] == [(1, 1), (3, 2), (2, 3)]

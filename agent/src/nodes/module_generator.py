@@ -1,5 +1,5 @@
 from src.state import CourseState
-from src.tools.canvas_api import create_module, list_modules, publish_module
+from src.tools.canvas_api import create_module, list_modules, publish_module, set_module_position
 from src.constants import INTRO_MODULE_NAME, CREDITS_MODULE_NAME
 from src.nodes.base import fail, proceed, resolve_course_id
 
@@ -53,10 +53,15 @@ def module_generator_node(state: CourseState) -> CourseState:
 
     module_mapping: dict[str, int] = {}
 
-    module_names = [INTRO_MODULE_NAME, CREDITS_MODULE_NAME, *(mod.name for mod in structure.modules)]
-    for name in module_names:
+    # Orden en Canvas: introducción, unidades en su orden y créditos al final.
+    module_names = [INTRO_MODULE_NAME, *(mod.name for mod in structure.modules), CREDITS_MODULE_NAME]
+    for position, name in enumerate(module_names, start=1):
         m_id = _get_or_create_module(name, course_id, existing_mods_by_name)
-        if m_id:
-            module_mapping[name] = m_id
+        if not m_id:
+            continue
+        module_mapping[name] = m_id
+        result = set_module_position.invoke({"module_id": m_id, "position": position, "course_id": course_id})
+        if "error" in result:
+            print(f"No se pudo ubicar el modulo '{name}' en la posicion {position}: {result['error']}")
 
     return proceed(state, module_mapping=module_mapping)

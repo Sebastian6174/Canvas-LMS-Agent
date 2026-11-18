@@ -3,95 +3,60 @@ Plantilla HTML de una actividad de Canvas.
 
 Reproduce la estructura de `example_activity.html`: banner, bloque justificado
 (tipo, peso, descripción, forma de entrega, materiales) y tabla resumen.
-El contenido variable (descripción, entrega, materiales) llega ya preparado;
-aquí sólo se ensambla.
+Todo el contenido sale del estado; aquí sólo se ensambla.
 """
 
-from html import escape
-from typing import Dict, Optional, Sequence
-
-from src.activities.rules import format_weight, infer_evaluation_type
-from src.utils.course_files import build_course_banner_html, file_id_from_url, normalize_filename
+from src.activities.rules import (
+    DEFAULT_DELIVERY_FORM_BY_TYPE,
+    format_weight,
+    infer_evaluation_type,
+    normalize_activity_type,
+)
+from src.pages.html import CourseLinks, banner, esc, resource_item, text_to_html
+from src.state import Activity
 
 DEFAULT_MODALITY = "Virtual"
 PENDING_RESOURCES_TEXT = "PENDIENTES"
+PENDING_DESCRIPTION_TEXT = "Descripción pendiente."
 SECTION_TITLE = '<p><span style="font-size: 14pt;"><strong>{}</strong></span></p>'
 SPACER = "<p>&nbsp;</p>"
 
 
-def _file_id_for_resource(resource: str, files_map: Optional[Dict[str, str]]) -> Optional[str]:
-    """ID del archivo del curso cuyo nombre coincide con el recurso, si existe."""
-    if not files_map:
-        return None
-    return file_id_from_url(
-        files_map.get(resource.strip().lower()) or files_map.get(normalize_filename(resource))
-    )
-
-
-def _resource_item(resource: str, files_map: Optional[Dict[str, str]], domain: str, course_id: str) -> str:
-    text = escape(resource.strip(), quote=False)
-    file_id = _file_id_for_resource(resource, files_map)
-    if not file_id:
-        return f"<li>{text}</li>"
-    return (
-        f'<li><a id="{file_id}" class="instructure_file_link instructure_scribd_file inline_disabled" '
-        f'title="Enlace" href="https://{domain}/courses/{course_id}/files/{file_id}?wrap=1" '
-        'target="_blank" data-canvas-previewable="true" '
-        f'data-api-endpoint="https://{domain}/api/v1/courses/{course_id}/files/{file_id}" '
-        f'data-api-returntype="File" rel="noopener">{text}</a></li>'
-    )
-
-
-def _resources_html(resources: Sequence[str], files_map, domain: str, course_id: str) -> str:
-    items = [
-        _resource_item(resource, files_map, domain, course_id)
-        for resource in resources or []
-        if resource and resource.strip()
+def delivery_form_for(activity: Activity) -> str:
+    """Forma de entrega del estado o, si falta, la habitual para su tipo."""
+    return (activity.delivery_form or "").strip() or DEFAULT_DELIVERY_FORM_BY_TYPE[
+        normalize_activity_type(activity.activity_type)
     ]
+
+
+def _resources_html(activity: Activity, links: CourseLinks) -> str:
+    items = [resource_item(r, links) for r in activity.resources if r and r.strip()]
     if not items:
-        items = [f"<li>{PENDING_RESOURCES_TEXT}</li>"]
-    return "\n".join(f"        {item}" for item in items)
+        items = [PENDING_RESOURCES_TEXT]
+    return "\n".join(f"        <li>{item}</li>" for item in items)
 
 
-def plain_text_to_paragraphs(text: str) -> str:
-    """Convierte texto plano en párrafos `<p><span>…</span></p>` como en el ejemplo."""
-    paragraphs = [part.strip() for part in (text or "").split("\n") if part.strip()]
-    if not paragraphs:
-        paragraphs = ["Descripción pendiente."]
-    return "\n".join(f"    <p><span>{escape(p, quote=False)}</span></p>" for p in paragraphs)
+def render_activity_html(activity: Activity, links: CourseLinks, modality: str = DEFAULT_MODALITY) -> str:
+    """HTML final del assignment con la estructura visual de Canvas."""
+    eval_label = infer_evaluation_type(activity.weight, activity.evaluation_type)
+    description = text_to_html(activity.description, indent="    ") or (
+        f"    <p><span>{PENDING_DESCRIPTION_TEXT}</span></p>"
+    )
+    week = activity.week or 1
 
-
-def render_activity_html(
-    *,
-    description_html: str,
-    delivery_form: str,
-    resources: Sequence[str],
-    weight: float,
-    evaluation_type: Optional[str] = None,
-    duration: int = 0,
-    week: int = 1,
-    files_map: Optional[Dict[str, str]] = None,
-    domain: str = "",
-    course_id: str = "",
-    modality: str = DEFAULT_MODALITY,
-) -> str:
-    """Ensambla el HTML final del assignment con la estructura visual de Canvas."""
-    eval_label = infer_evaluation_type(weight, evaluation_type)
-    delivery = escape((delivery_form or "").strip(), quote=False)
-
-    return f"""{build_course_banner_html(files_map, domain, course_id)}
+    return f"""{banner(links)}
 <div style="text-align: justify;">
-    <p><span><span style="font-size: 14pt;"><strong>Tipo de actividad</strong>&nbsp;</span>:</span><span>&nbsp;</span>{eval_label}&nbsp;<br /><span><span style="font-size: 14pt;"><strong>Peso nota final:</strong></span>&nbsp;</span>{format_weight(weight)}%</p>
+    <p><span><span style="font-size: 14pt;"><strong>Tipo de actividad</strong>&nbsp;</span>:</span><span>&nbsp;</span>{eval_label}&nbsp;<br /><span><span style="font-size: 14pt;"><strong>Peso nota final:</strong></span>&nbsp;</span>{format_weight(activity.weight)}%</p>
     {SPACER}
     {SECTION_TITLE.format("Descripci&oacute;n de la Actividad:")}
-{description_html.strip(chr(10)).rstrip()}
+{description}
     {SPACER}
     {SECTION_TITLE.format("Forma de entrega:")}
-    <p>{delivery}</p>
+    <p>{esc(delivery_form_for(activity))}</p>
     {SPACER}
     {SECTION_TITLE.format("Materiales de estudio:")}
     <ul>
-{_resources_html(resources, files_map, domain, course_id)}
+{_resources_html(activity, links)}
     </ul>
 </div>
 {SPACER}
@@ -120,7 +85,7 @@ def render_activity_html(
         </tr>
         <tr>
             <td style="text-align: center; border-style: dotted;">Dedicaci&oacute;n</td>
-            <td style="text-align: center; border-style: dotted;">{duration}</td>
+            <td style="text-align: center; border-style: dotted;">{activity.duration}</td>
             <td style="border-style: dotted;" colspan="2">hora(s)</td>
         </tr>
     </tbody>

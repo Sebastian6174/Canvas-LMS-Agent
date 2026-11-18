@@ -10,10 +10,12 @@ from src.routing import (
 from src.nodes.analyst import analyst_node
 from src.nodes.setup_course import setup_course_node
 from src.nodes.page_creator import page_creator_node
-from src.nodes.agenda_creator import agenda_creator_node
-from src.nodes.alignment_creator import alignment_creator_node
-from src.nodes.forum_creator import forum_creator_node
-from src.nodes.credits_creator import credits_creator_node
+from src.nodes.content_pages import (
+    agenda_creator_node,
+    alignment_creator_node,
+    credits_creator_node,
+    forum_creator_node,
+)
 from src.nodes.module_generator import module_generator_node
 from src.nodes.populate_special_modules import populate_special_modules_node
 from src.nodes.activity_creator import activity_creator_node
@@ -40,7 +42,6 @@ def create_graph():
     workflow.add_node("rubrics_creator", rubrics_creator_node)
     workflow.add_node("syllabus_creator", syllabus_creator_node)
 
-    # The analyst processes one document chunk per graph iteration.
     workflow.add_edge(START, "analyst")
     workflow.add_conditional_edges("analyst", route_after_analyst)
 

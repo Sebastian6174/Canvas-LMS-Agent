@@ -8,3 +8,7 @@ ALIGNMENT_PAGE_TITLE = "Alineación de actividades"
 CREDITS_PAGE_TITLE = "Créditos"
 FORUM_TITLE = "Foro de dudas"
 ACTIVITIES_HEADER_TITLE = "Actividades"
+
+# Cada unidad empieza con: página de introducción, página de materiales y el
+# encabezado "Actividades". Las actividades van a continuación, en su orden.
+UNIT_ITEMS_BEFORE_ACTIVITIES = 3

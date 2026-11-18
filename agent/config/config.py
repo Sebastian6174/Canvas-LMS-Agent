@@ -37,10 +37,10 @@ class Config:
     # LLM
     openrouter_api_key = _env("OPENROUTER_API_KEY")
     openrouter_model = _env("OPENROUTER_MODEL", default="inclusionai/ring-2.6-1t")
-    # Valores por defecto reducidos para evitar errores por límite de créditos/tokens
+    # Tokens máximos de salida por llamada (cada extracción del analista es pequeña)
     llm_max_tokens = int(_env("LLM_MAX_TOKENS", default="3000"))
-    analysis_chunk_size = int(_env("ANALYSIS_CHUNK_SIZE", default="6000"))
-    analysis_min_chunk_size = int(_env("ANALYSIS_MIN_CHUNK_SIZE", default="1200"))
+    # Llamadas simultáneas al LLM durante el análisis (actividades y rúbricas)
+    analysis_concurrency = int(_env("ANALYSIS_CONCURRENCY", default="4"))
 
     google_api_key = _env("GOOGLE_API_KEY")
     google_model = _env("GOOGLE_MODEL", default="gemini-2.5-flash")

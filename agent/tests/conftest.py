@@ -18,3 +18,14 @@ def _no_real_llm(monkeypatch):
         raise RuntimeError("LLM real deshabilitado en tests")
 
     monkeypatch.setattr(config, "get_llm", _unavailable)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_canvas(monkeypatch):
+    """Ningún test debe llamar a la API real de Canvas; los que la usan la simulan."""
+    from src.tools import canvas_api
+
+    def _blocked(method, endpoint, *args, **kwargs):
+        raise RuntimeError(f"Llamada real a Canvas bloqueada en tests: {method} {endpoint}")
+
+    monkeypatch.setattr(canvas_api, "_canvas_request", _blocked)

@@ -5,67 +5,11 @@ import itertools
 import pytest
 
 from config import config
-from src.activities.content import ActivityContent
 from src.graph import create_graph
 from src.pipeline import initial_state
-from src.state import Activity, CourseStructure, Module, ScheduleItem
 from src.tools import canvas_api
-
-
-def _structure() -> CourseStructure:
-    return CourseStructure(
-        name="Curso de Prueba",
-        academic_program="Ingenieria",
-        semester=1,
-        academic_level="Pregrado",
-        credits=3,
-        prerequisites=[],
-        teacher="Docente",
-        description="Descripcion",
-        learning_outcomes=["RA1"],
-        modules=[Module(name="Unidad 1. Inicio", description="", activities=["Ensayo"])],
-        activities=[
-            Activity(
-                name="Ensayo",
-                description="Escribir un ensayo",
-                duration=2,
-                activity_type="Tarea",
-                evaluation_type="Evaluativa",
-                related_learning_outcome="RA1",
-                weight=100,
-                module_name="Unidad 1. Inicio",
-            )
-        ],
-        schedule=[ScheduleItem(week=3, activity_name="Ensayo", time_commitment="2 horas")],
-    )
-
-
-class _Structured:
-    def __init__(self, schema):
-        self.schema = schema
-
-    def invoke(self, messages):
-        if self.schema is ActivityContent:
-            return ActivityContent(
-                description_html="<p><span>Redacte el ensayo.</span></p>",
-                delivery_form="Envíe el documento en Canvas.",
-                resources=["Lectura 1"],
-            )
-        return _structure()
-
-
-class _FakeLLM:
-    def __init__(self, fail_on: str | None = None):
-        self.fail_on = fail_on
-
-    def with_structured_output(self, schema):
-        return _Structured(schema)
-
-    def invoke(self, messages):
-        if self.fail_on and self.fail_on in messages[0].content:
-            raise RuntimeError("boom")
-        return type("Response", (), {"content": "```html<p>contenido</p>```"})()
-
+from tests.fakes import FakeAnalystLLM
+from tests.test_analysis import TABS
 
 canvas_payloads = []
 
@@ -85,46 +29,61 @@ def canvas_calls(monkeypatch):
         return {"id": new_id, "url": f"pagina-{new_id}"}
 
     monkeypatch.setattr(canvas_api, "_canvas_request", fake_request)
-    monkeypatch.setattr(
-        "src.nodes.analyst.read_google_doc",
-        lambda doc_id: [{"title": "Programa", "content": "contenido del curso"}],
-    )
+    monkeypatch.setattr("src.nodes.analyst.read_google_doc", lambda doc_id: TABS)
     monkeypatch.setattr(config, "course_id", "999")
     monkeypatch.setattr(config, "create_new_course", False)
     monkeypatch.setattr(config, "base_course_id", "")
     monkeypatch.setattr(config, "teacher_doc", "")
+    monkeypatch.setattr(config, "get_llm", FakeAnalystLLM)
     return calls
 
 
-def test_pipeline_runs_end_to_end(monkeypatch, canvas_calls):
-    monkeypatch.setattr(config, "get_llm", lambda: _FakeLLM())
+def _posted(endpoint_suffix):
+    return [data for method, endpoint, data in canvas_payloads if method == "POST" and endpoint.endswith(endpoint_suffix)]
 
+
+def test_pipeline_runs_end_to_end(canvas_calls):
     final = create_graph().invoke(initial_state("doc"))
 
     assert final["errors"] == []
     assert final["is_valid"] is True
     assert final["canvas_course_id"] == "999"
-    assert set(final["module_mapping"]) == {
-        "Introducción al curso y ayuda",
-        "Créditos",
-        "Unidad 1. Inicio",
-    }
+    assert list(final["module_mapping"]) == ["Introducción al curso y ayuda", "Unidad 1. Inicio", "Créditos"]
     assert final["agenda_page_url"] and final["alignment_page_url"] and final["credits_page_url"]
     assert final["forum_discussion_id"]
-    assert list(final["canvas_assignment_ids"]) == ["Actividad 1. Tarea: Ensayo"]
+    assert list(final["canvas_assignment_ids"]) == [
+        "Actividad 1. Videoconferencia: Bienvenida",
+        "Actividad 2. Tarea: Ensayo",
+    ]
     assert final["syllabus_page_url"] == "/courses/999/assignments/syllabus"
     assert ("PUT", "/front_page") in canvas_calls
-    assert ("POST", "/assignments") in canvas_calls
-    description = next(data for method, endpoint, data in canvas_payloads if endpoint == "/assignments")
-    assert "Redacte el ensayo." in description["assignment"]["description"]
-    assert "Envíe el documento en Canvas." in description["assignment"]["description"]
-    assert "Semana No. 3" in description["assignment"]["description"]
+
+    assignments = [data["assignment"] for data in _posted("/assignments")]
+    assert [a["name"] for a in assignments] == list(final["canvas_assignment_ids"])
+    assert [a["position"] for a in assignments] == [1, 2]
+    essay = assignments[1]["description"]
+    assert "Primer paso." in essay and "Suba el ensayo en PDF." in essay and "Semana No. 2" in essay
+
+    # Las actividades van después de las dos páginas y el encabezado de la unidad.
+    activity_items = [d["module_item"] for d in _posted("/items") if d["module_item"]["type"] == "Assignment"]
+    assert [item["position"] for item in activity_items] == [4, 5]
+
+    # Rúbrica asociada a la actividad evaluativa.
+    rubrics = _posted("/rubrics")
+    assert len(rubrics) == 1 and rubrics[0]["rubric"]["title"] == "Actividad 2. Tarea: Ensayo"
 
 
 def test_home_page_failure_is_reported_once(monkeypatch, canvas_calls):
-    monkeypatch.setattr(config, "get_llm", lambda: _FakeLLM(fail_on="página de inicio"))
+    original = canvas_api._canvas_request
+
+    def failing_front_page(method, endpoint, data=None, custom_course_id=None):
+        if endpoint == "/front_page":
+            return {"error": "boom", "status_code": 500}
+        return original(method, endpoint, data, custom_course_id)
+
+    monkeypatch.setattr(canvas_api, "_canvas_request", failing_front_page)
 
     final = create_graph().invoke(initial_state("doc"))
 
-    assert final["errors"] == ["Error generando HTML con LLM: boom"]
-    assert ("POST", "/assignments") not in canvas_calls
+    assert final["errors"] == ["Error en page_creator"]
+    assert not _posted("/assignments")

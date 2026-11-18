@@ -4,8 +4,6 @@ from src.activities.rules import (
     infer_evaluation_type,
     ACTIVITY_TYPE_DEFAULT,
 )
-from src.analysis.enrichment import enrich_activity_titles_and_types
-from src.state import Activity, CourseStructure, Module
 
 
 def test_normalize_activity_type_defaults_to_otros():
@@ -27,35 +25,3 @@ def test_infer_evaluation_type_from_weight():
     assert infer_evaluation_type(0) == "Formativa"
     assert infer_evaluation_type(20) == "Evaluativa"
     assert infer_evaluation_type(0, "Evaluativa") == "Evaluativa"
-
-
-def test_enrich_activity_titles_and_types_updates_modules_and_schedule():
-    structure = CourseStructure(
-        name="Curso",
-        academic_program="Prog",
-        semester=1,
-        academic_level="Pregrado",
-        credits=3,
-        prerequisites=[],
-        teacher="Docente",
-        description="Desc",
-        learning_outcomes=["RA1"],
-        modules=[
-            Module(name="Unidad 1", description="U1", activities=["Tarea uno"]),
-        ],
-        activities=[
-            Activity(
-                name="Tarea uno",
-                description="d",
-                duration=4,
-                activity_type="Tarea",
-                related_learning_outcome="RA1",
-                weight=10,
-            )
-        ],
-        schedule=[],
-    )
-    enriched = enrich_activity_titles_and_types(structure)
-    assert enriched.activities[0].name == "Actividad 1. Tarea: Tarea uno"
-    assert enriched.modules[0].activities[0] == "Actividad 1. Tarea: Tarea uno"
-    assert enriched.activities[0].evaluation_type == "Evaluativa"

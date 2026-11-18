@@ -22,9 +22,6 @@ def has_errors(state: CourseState) -> bool:
 def route_after_analyst(state: CourseState) -> str:
     if has_errors(state):
         return END
-    chunks = state.get("analysis_chunks")
-    if chunks and not state.get("is_valid") and state.get("analysis_chunk_index", 0) < len(chunks):
-        return "analyst"
     if state.get("is_valid") and state.get("course_structure"):
         return "setup_course"
     return END

@@ -7,12 +7,11 @@ from src.tools.canvas_api import (
     enable_assignment_group_weights,
     list_assignments,
 )
-from src.activities.content import generate_activity_content, safe_get_llm
 from src.activities.template import render_activity_html
 from src.activities.rules import format_weight, is_evaluative, weight_as_percent
+from src.constants import UNIT_ITEMS_BEFORE_ACTIVITIES
 from src.nodes.base import fail, proceed, resolve_course_id
-from src.utils.course_files import resolve_html_links
-from src.utils.units import activities_for_unit
+from src.pages.html import CourseLinks
 from config import config
 
 ASSIGNMENT_POINTS = 5.0
@@ -111,15 +110,6 @@ def _delete_stale_assignments(course_id: str, current_activity_names: set[str]) 
             print(f"No se pudo eliminar la actividad antigua '{assignment_name}': {result['error']}")
 
 
-def _week_for_activity(activity, schedule) -> int:
-    """Semana del cronograma en la que cae la actividad (1 si no aparece)."""
-    target = _normalize_assignment_name(activity.name)
-    for item in schedule or []:
-        if _normalize_assignment_name(item.activity_name) == target:
-            return item.week
-    return 1
-
-
 def activity_creator_node(state: CourseState) -> CourseState:
     """
     Nodo encargado de crear las actividades y asignarlas a sus unidades (módulos Canvas).
@@ -144,33 +134,17 @@ def activity_creator_node(state: CourseState) -> CourseState:
     _delete_stale_assignments(course_id, current_activity_names)
     assignment_group_ids = _create_assignment_groups(course_id, structure.activities)
 
-    llm = safe_get_llm(config.get_llm)
+    links = CourseLinks(files_map, config.domain, course_id)
     canvas_assignment_ids = {}
     for act in structure.activities:
         print(f"Creando actividad: {act.name}")
         assignment_group_id = _assignment_group_id_for_activity(act, assignment_group_ids)
         points_possible = _points_for_activity(act)
 
-        week = _week_for_activity(act, structure.schedule)
-        content = generate_activity_content(llm, act, week)
-
-        description_html = render_activity_html(
-            description_html=content.description_html,
-            delivery_form=content.delivery_form,
-            resources=content.resources,
-            weight=act.weight,
-            evaluation_type=act.evaluation_type,
-            duration=act.duration,
-            week=week,
-            files_map=files_map,
-            domain=config.domain,
-            course_id=course_id,
-        )
-        description_html = resolve_html_links(description_html, files_map, config.domain, course_id)
-
         assignment_payload = {
             "name": act.name,
-            "description": description_html,
+            "description": render_activity_html(act, links),
+            "position": act.number,
             "points_possible": points_possible,
             "grading_type": "points" if is_evaluative(act) else "not_graded",
             "omit_from_final_grade": not is_evaluative(act),
@@ -193,7 +167,8 @@ def activity_creator_node(state: CourseState) -> CourseState:
             print(f"No hay módulo Canvas para la unidad '{mod.name}'. Omitiendo actividades.")
             continue
 
-        for act in activities_for_unit(structure.activities, mod.name):
+        unit_activities = [act for act in structure.activities if act.module_name == mod.name]
+        for index, act in enumerate(unit_activities, start=1):
             assign_id = canvas_assignment_ids.get(act.name)
             if not assign_id:
                 print(
@@ -209,6 +184,7 @@ def activity_creator_node(state: CourseState) -> CourseState:
                 "type": "Assignment",
                 "content_id": assign_id,
                 "course_id": course_id,
+                "position": UNIT_ITEMS_BEFORE_ACTIVITIES + index,
             })
 
     return proceed(state, canvas_assignment_ids=canvas_assignment_ids)

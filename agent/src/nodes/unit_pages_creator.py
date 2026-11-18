@@ -1,22 +1,21 @@
-from src.state import CourseState
-from src.tools.canvas_api import create_page, add_item_to_module
+from config import config
 from src.constants import ACTIVITIES_HEADER_TITLE
 from src.nodes.base import fail, proceed, resolve_course_id
-from src.utils.course_files import build_course_banner_html, resolve_html_links
-from src.utils.units import (
+from src.pages.html import CourseLinks
+from src.pages.unit import (
+    build_unit_intro_html,
+    build_unit_materials_html,
     unit_intro_page_title,
     unit_materials_page_title,
-    build_unit_intro_page_body,
-    build_unit_materials_page_body,
-    collect_unit_resources,
 )
-from config import config
+from src.state import CourseState
+from src.tools.canvas_api import add_item_to_module, create_page
 
 
 def unit_pages_creator_node(state: CourseState) -> CourseState:
     """
-    Crea en cada unidad dos páginas Canvas antes de las actividades:
-    introducción/resultados (solo título) y materiales de estudio (banner + recursos).
+    Crea al inicio de cada unidad la página de introducción (presentación, RA e
+    indicadores), la de materiales de estudio y el encabezado "Actividades".
     """
     if state.get("errors"):
         return proceed(state)
@@ -24,7 +23,6 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
     structure = state.get("course_structure")
     course_id = resolve_course_id(state)
     module_mapping = state.get("module_mapping") or {}
-    files_map = state.get("course_files_map") or {}
 
     if not structure or not course_id:
         return fail(state, "Faltan datos para crear páginas de unidad")
@@ -33,9 +31,7 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
         return fail(state, "No hay unidades creadas en Canvas para añadir páginas")
 
     print(f"Creando páginas de unidad para el curso {course_id}...")
-
-    banner_html = build_course_banner_html(files_map, config.domain, course_id)
-    banner_html = resolve_html_links(banner_html, files_map, config.domain, course_id)
+    links = CourseLinks(state.get("course_files_map"), config.domain, course_id)
 
     for unit_index, unit in enumerate(structure.modules, start=1):
         mod_id = module_mapping.get(unit.name)
@@ -43,25 +39,14 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
             print(f"No se encontró módulo Canvas para la unidad '{unit.name}'. Omitiendo páginas.")
             continue
 
-        intro_title = unit_intro_page_title(unit_index)
-        materials_title = unit_materials_page_title(unit_index)
-        unit_resources = collect_unit_resources(structure.activities, unit.name)
-
+        number = unit.number or unit_index
         pages = [
-            (intro_title, build_unit_intro_page_body(intro_title)),
-            (
-                materials_title,
-                build_unit_materials_page_body(banner_html, unit_resources),
-            ),
+            (unit_intro_page_title(number), build_unit_intro_html(structure, unit, links)),
+            (unit_materials_page_title(number), build_unit_materials_html(structure, unit, links)),
         ]
 
-        for page_title, body in pages:
-            resolved_body = resolve_html_links(body, files_map, config.domain, course_id)
-            result = create_page.invoke({
-                "title": page_title,
-                "body": resolved_body,
-                "course_id": course_id,
-            })
+        for position, (page_title, body) in enumerate(pages, start=1):
+            result = create_page.invoke({"title": page_title, "body": body, "course_id": course_id})
             if "error" in result:
                 print(f"Error al crear página '{page_title}': {result['error']}")
                 continue
@@ -78,6 +63,7 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
                 "type": "Page",
                 "page_url": page_url,
                 "course_id": course_id,
+                "position": position,
             })
 
         print(f"Agregando encabezado '{ACTIVITIES_HEADER_TITLE}' a la unidad {unit.name}")
@@ -86,6 +72,7 @@ def unit_pages_creator_node(state: CourseState) -> CourseState:
             "title": ACTIVITIES_HEADER_TITLE,
             "type": "SubHeader",
             "course_id": course_id,
+            "position": len(pages) + 1,
         })
 
     return proceed(state)
